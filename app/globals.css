@@ -1,26 +1,95 @@
 @import "tailwindcss";
 
 :root {
+  --primary-green: #36e07b;
+  --primary-green-hover: #1bcb68;
+  --primary-green-light: #e8faf0;
+  --dashboard-accent: #36e07b;
+  --dashboard-accent-dark: #1bcb68;
+  --dashboard-accent-soft: #72c795;
+  --dashboard-border: #e5e7eb;
+  --dashboard-panel: #ffffff;
+  --dashboard-bg: #ffffff;
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #1f1724;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-primary-green: var(--primary-green);
+  --color-primary-green-hover: var(--primary-green-hover);
+  --color-primary-green-light: var(--primary-green-light);
+  --font-sans: var(--font-lexend);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-lexend), system-ui, sans-serif;
 }
+
+.dashboard-kicker {
+  color: var(--dashboard-accent-soft);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.dashboard-title {
+  color: #211826;
+  font-size: clamp(1.8rem, 2vw, 2.5rem);
+  font-weight: 650;
+  letter-spacing: -0.04em;
+}
+
+.dashboard-subtitle {
+  color: #6b7f72;
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+.dashboard-panel {
+  background: var(--dashboard-panel);
+  border: 1px solid var(--dashboard-border);
+  border-radius: 1.75rem;
+}
+
+.dashboard-surface {
+  background: #ffffff;
+  border: 1px solid var(--dashboard-border);
+  border-radius: 1.5rem;
+}
+
+.dashboard-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-left {
+  from { opacity: 0; transform: translateX(-24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fade-right {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up    { animation: fade-up    0.5s ease both; }
+.animate-fade-left  { animation: fade-left  0.5s ease both; }
+.animate-fade-right { animation: fade-right 0.5s ease both; }
+.animate-slide-down { animation: slide-down 0.4s ease both; }
