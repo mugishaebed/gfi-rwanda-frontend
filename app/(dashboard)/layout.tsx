@@ -15,7 +15,8 @@ export default async function DashboardLayout({
 
   const payload = decodeJWT(accessToken)
   if (!payload) redirect('/login')
-  if (!isRole(payload.role) && !isRole(selectedRole)) redirect('/login')
+  const payloadRole = payload.roles?.find(isRole)
+  if (!payloadRole && !isRole(selectedRole)) redirect('/login')
 
   return <div className="min-h-screen bg-white">{children}</div>
 }

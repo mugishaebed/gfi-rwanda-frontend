@@ -6,8 +6,8 @@ const PUBLIC_PATHS = [
   '/login',
   '/auth/microsoft/login',
   '/auth/microsoft/callback',
+  '/auth/callback',
   '/api/auth/logout',
-  '/api/dev',
 ]
 
 export async function middleware(request: NextRequest) {

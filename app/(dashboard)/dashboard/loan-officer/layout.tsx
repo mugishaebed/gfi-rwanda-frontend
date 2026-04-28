@@ -13,9 +13,9 @@ export default async function LoanOfficerLayout({
   const accessToken = cookieStore.get(COOKIE_ACCESS_TOKEN)?.value
   const selectedRole = cookieStore.get(COOKIE_SELECTED_ROLE)?.value
   const payload = accessToken ? decodeJWT(accessToken) : null
-  const activeRole = payload?.role ?? (isRole(selectedRole) ? selectedRole : undefined)
-
-  if (activeRole !== 'LOAN_OFFICER') redirect('/login')
+  const userRoles = payload?.roles ?? []
+  const hasAccess = userRoles.includes('LOAN_OFFICER') || selectedRole === 'LOAN_OFFICER'
+  if (!hasAccess) redirect('/login')
 
   return (
     <DashboardFrame

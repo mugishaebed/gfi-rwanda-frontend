@@ -4,7 +4,7 @@ export interface AuthUser {
   id: string
   email: string
   name: string
-  role: Role
+  roles: Role[]
 }
 
 export interface AuthResponse {
@@ -18,7 +18,7 @@ export interface JWTPayload {
   sub?: string
   email?: string
   name?: string
-  role?: Role
+  roles?: Role[]
   exp?: number
   iat?: number
 }
@@ -38,7 +38,7 @@ export function decodeJWT(token: string): JWTPayload | null {
 }
 
 export function getRoleFromToken(token: string): Role | null {
-  return decodeJWT(token)?.role ?? null
+  return decodeJWT(token)?.roles?.find(isRole) ?? null
 }
 
 export function isTokenExpired(token: string): boolean {

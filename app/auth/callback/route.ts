@@ -7,48 +7,34 @@ import {
   COOKIE_SELECTED_ROLE,
   ROLE_HOME,
   isRole,
-  type AuthResponse,
 } from '@/lib/auth'
 
-const API_URL = process.env.NEXT_PUBLIC_AUTH_URL ?? process.env.NEXT_PUBLIC_API_URL ?? ''
 const ONE_DAY = 60 * 60 * 24
 const THIRTY_DAYS = ONE_DAY * 30
 
-// Microsoft redirects here after OAuth: /auth/microsoft/callback?code=...&state=...
-// We forward the query string to the backend, which exchanges the code and returns tokens.
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
 
-  const code = searchParams.get('code')
-  const state = searchParams.get('state')
-  const error = searchParams.get('error')
+  const authStatus = searchParams.get('authStatus')
+  const appAccessToken = searchParams.get('appAccessToken')
+  const refreshToken = searchParams.get('refreshToken')
+  const rolesParam = searchParams.get('roles')
 
-  if (error || !code) {
-    redirect(`/login?error=${error ?? 'auth_failed'}`)
-  }
-
-  // Forward code + state to backend callback endpoint
-  const params = new URLSearchParams()
-  if (code) params.set('code', code)
-  if (state) params.set('state', state)
-
-  const backendRes = await fetch(
-    `${API_URL}/auth/microsoft/callback?${params.toString()}`,
-    { cache: 'no-store' }
-  ).catch(() => null)
-
-  if (!backendRes?.ok) {
+  if (authStatus !== 'success' || !appAccessToken || !refreshToken) {
     redirect('/login?error=auth_failed')
   }
 
-  const data: AuthResponse = await backendRes.json()
-  const { appAccessToken, refreshToken, user } = data
+  const userRoles = rolesParam ? rolesParam.split(',').filter(isRole) : []
 
   const isProduction = process.env.NODE_ENV === 'production'
   const cookieStore = await cookies()
   const selectedRole = cookieStore.get(COOKIE_SELECTED_ROLE)?.value
-  const userRole = user.roles?.find(isRole) ?? null
-  const redirectRole = userRole ?? (isRole(selectedRole) ? selectedRole : null)
+
+  // Prefer the role the user explicitly selected on the login page
+  const redirectRole =
+    isRole(selectedRole) && userRoles.includes(selectedRole)
+      ? selectedRole
+      : userRoles[0] ?? null
 
   cookieStore.set(COOKIE_ACCESS_TOKEN, appAccessToken, {
     httpOnly: true,
