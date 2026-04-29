@@ -1,8 +1,6 @@
 'use client'
 
-import type { Loan } from '@/lib/types'
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
+import type { Loan, LoanDocument, RepaymentScheduleItem, RepaymentTermsDetail } from '@/lib/types'
 
 const STATUS_STYLES: Record<string, string> = {
   PENDING: 'bg-yellow-50 text-yellow-700',
@@ -10,16 +8,66 @@ const STATUS_STYLES: Record<string, string> = {
   REJECTED: 'bg-red-50 text-red-600',
 }
 
-function fmt(iso: string) {
-  return new Date(iso).toLocaleDateString('en-RW', {
+const CONTRACT_LABELS = new Set([
+  'Loan Contract (English PDF)',
+  "Amasezerano y'Inguzanyo (Kinyarwanda PDF)",
+])
+
+function isContract(doc: LoanDocument) {
+  return !!doc.label && CONTRACT_LABELS.has(doc.label)
+}
+
+function openDocument(docId: string) {
+  window.open(`/api/proxy/documents/${docId}/download`, '_blank')
+}
+
+function hasValue(value: unknown) {
+  return value !== undefined && value !== null && value !== ''
+}
+
+function fmtDate(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleDateString('en-RW', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
   })
 }
 
-function fmtMoney(n: number) {
-  return n.toLocaleString('en-RW', { style: 'currency', currency: 'RWF' })
+function fmtMoney(value: number | string) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return String(value)
+  return numeric.toLocaleString('en-RW', { style: 'currency', currency: 'RWF' })
+}
+
+function fmtPercent(value: number | string) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return `${value}%`
+  return `${numeric.toLocaleString('en-RW', { maximumFractionDigits: 2 })}%`
+}
+
+function labelize(key: string) {
+  return key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, (letter) => letter.toUpperCase())
+}
+
+function repaymentDetail(loan: Loan): RepaymentTermsDetail | undefined {
+  if (!loan.repaymentTerms || Array.isArray(loan.repaymentTerms)) return undefined
+  return loan.repaymentTerms
+}
+
+function repaymentSchedule(loan: Loan): RepaymentScheduleItem[] {
+  if (!loan.repaymentTerms) return []
+  if (Array.isArray(loan.repaymentTerms)) {
+    return loan.repaymentTerms.map((term, index) => ({
+      installmentNo: index + 1,
+      dueDate: term.dueDate,
+      amount: term.amount,
+    }))
+  }
+  return loan.repaymentTerms.schedule ?? []
 }
 
 interface Props {
@@ -34,23 +82,41 @@ export default function LoanDetailModal({ loan, onClose }: Props) {
     loan.client.accountNumber
 
   const guarantorEntries = loan.guarantorInfo
-    ? Object.entries(loan.guarantorInfo).filter(([, v]) => v)
+    ? Object.entries(loan.guarantorInfo).filter(([, value]) => hasValue(value))
     : []
 
+  const terms = repaymentDetail(loan)
+  const schedule = repaymentSchedule(loan)
   const submittedByName = loan.user?.name || 'Unknown user'
   const submittedByEmail = loan.user?.email || 'No email available'
 
+  const hasCollateral =
+    hasValue(loan.collateralType) ||
+    hasValue(loan.collateralEstimatedValue) ||
+    hasValue(loan.collateralLocation)
+
+  const hasFees =
+    hasValue(loan.loanProcessingFeePercent) ||
+    hasValue(loan.administrativeFeePercent) ||
+    hasValue(loan.loanApplicationFeePercent) ||
+    hasValue(loan.earlyRepaymentFeePercent) ||
+    hasValue(loan.defaultPenaltyFeePercentPerDay)
+
+  const hasRelationships = hasValue(loan.spouseName) || guarantorEntries.length > 0
+
+  const contractDocs = loan.documents.filter(isContract)
+  const supportingDocs = loan.documents.filter((doc) => !isContract(doc))
+
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+      <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-8 shadow-xl">
+        <div className="mb-6 flex items-start justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#36e07b] mb-1">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#36e07b]">
               Loan Details
             </p>
             <h3 className="text-xl font-bold text-gray-900">{clientName}</h3>
-            <p className="text-sm text-gray-400 mt-0.5">{loan.client.accountNumber}</p>
+            <p className="mt-0.5 text-sm text-gray-400">{loan.client.accountNumber}</p>
           </div>
           <div className="flex items-center gap-3">
             <span
@@ -61,54 +127,147 @@ export default function LoanDetailModal({ loan, onClose }: Props) {
               {loan.status}
             </span>
             <button
+              type="button"
               onClick={onClose}
-              className="text-gray-300 hover:text-gray-600 transition-colors text-lg leading-none"
+              className="text-lg leading-none text-gray-300 transition-colors hover:text-gray-600"
             >
-              ✕
+              x
             </button>
           </div>
         </div>
 
         <div className="space-y-6">
-          {/* Core fields */}
           <Section title="Loan Information">
             <Field label="Amount" value={fmtMoney(loan.amount)} />
             <Field label="Purpose" value={loan.purpose} />
-            <Field label="Applied" value={fmt(loan.createdAt)} />
-            {loan.activatedAt && <Field label="Activated" value={fmt(loan.activatedAt)} />}
+            {hasValue(loan.interestRatePercentPerMonth) && (
+              <Field
+                label="Interest Rate / Month"
+                value={fmtPercent(loan.interestRatePercentPerMonth!)}
+              />
+            )}
+            {hasValue(loan.termInMonths) && (
+              <Field label="Term" value={`${loan.termInMonths} months`} />
+            )}
+            {loan.termStartDate && <Field label="Term Start" value={fmtDate(loan.termStartDate)} />}
+            {loan.termEndDate && <Field label="Term End" value={fmtDate(loan.termEndDate)} />}
+            {hasValue(loan.disbursementWithinDays) && (
+              <Field
+                label="Disbursement"
+                value={`Within ${loan.disbursementWithinDays} days`}
+              />
+            )}
+            <Field label="Applied" value={fmtDate(loan.createdAt)} />
+            {loan.activatedAt && <Field label="Activated" value={fmtDate(loan.activatedAt)} />}
             {loan.comments && <Field label="Comments" value={loan.comments} full />}
           </Section>
 
-          {/* Repayment schedule */}
-          {loan.repaymentTerms.length > 0 && (
-            <Section title="Repayment Schedule">
-              <div className="col-span-2 divide-y divide-gray-50 -mt-1">
-                {loan.repaymentTerms.map((term, i) => (
-                  <div key={i} className="flex justify-between py-2 text-sm">
-                    <span className="text-gray-500">{fmt(term.dueDate)}</span>
-                    <span className="font-medium text-gray-900">{fmtMoney(term.amount)}</span>
-                  </div>
-                ))}
-              </div>
+          {hasCollateral && (
+            <Section title="Collateral">
+              {loan.collateralType && <Field label="Type" value={loan.collateralType} />}
+              {hasValue(loan.collateralEstimatedValue) && (
+                <Field
+                  label="Estimated Value"
+                  value={fmtMoney(loan.collateralEstimatedValue!)}
+                />
+              )}
+              {loan.collateralLocation && (
+                <Field label="Location" value={loan.collateralLocation} full />
+              )}
             </Section>
           )}
 
-          {/* Guarantor */}
-          {guarantorEntries.length > 0 && (
-            <Section title="Guarantor">
-              {guarantorEntries.map(([k, v]) => (
-                <Field key={k} label={k.charAt(0).toUpperCase() + k.slice(1)} value={v} />
+          {(terms || schedule.length > 0) && (
+            <Section title="Repayment">
+              {terms?.currency && <Field label="Currency" value={terms.currency} />}
+              {hasValue(terms?.installmentsCount ?? loan.repaymentInstallmentsCount) && (
+                <Field
+                  label="Installments"
+                  value={String(terms?.installmentsCount ?? loan.repaymentInstallmentsCount)}
+                />
+              )}
+              {hasValue(terms?.amountPerInstallment ?? loan.repaymentAmountPerMonth) && (
+                <Field
+                  label="Amount / Installment"
+                  value={fmtMoney(terms?.amountPerInstallment ?? loan.repaymentAmountPerMonth!)}
+                />
+              )}
+              {hasValue(terms?.periodMonths ?? loan.repaymentPeriodMonths) && (
+                <Field
+                  label="Period"
+                  value={`${terms?.periodMonths ?? loan.repaymentPeriodMonths} months`}
+                />
+              )}
+              {hasValue(terms?.paymentDayOfMonth ?? loan.paymentDayOfMonth) && (
+                <Field
+                  label="Payment Day"
+                  value={`Day ${terms?.paymentDayOfMonth ?? loan.paymentDayOfMonth}`}
+                />
+              )}
+              {schedule.length > 0 && (
+                <div className="col-span-2 divide-y divide-gray-50 -mt-1">
+                  {schedule.map((term, index) => (
+                    <div key={index} className="flex justify-between gap-4 py-2 text-sm">
+                      <span className="text-gray-500">
+                        #{term.installmentNo ?? index + 1} - {fmtDate(term.dueDate)}
+                      </span>
+                      <span className="font-medium text-gray-900">{fmtMoney(term.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Section>
+          )}
+
+          {hasFees && (
+            <Section title="Fees & Penalties">
+              {hasValue(loan.loanProcessingFeePercent) && (
+                <Field
+                  label="Processing Fee"
+                  value={fmtPercent(loan.loanProcessingFeePercent!)}
+                />
+              )}
+              {hasValue(loan.administrativeFeePercent) && (
+                <Field
+                  label="Administrative Fee"
+                  value={fmtPercent(loan.administrativeFeePercent!)}
+                />
+              )}
+              {hasValue(loan.loanApplicationFeePercent) && (
+                <Field
+                  label="Application Fee"
+                  value={fmtPercent(loan.loanApplicationFeePercent!)}
+                />
+              )}
+              {hasValue(loan.earlyRepaymentFeePercent) && (
+                <Field
+                  label="Early Repayment Fee"
+                  value={fmtPercent(loan.earlyRepaymentFeePercent!)}
+                />
+              )}
+              {hasValue(loan.defaultPenaltyFeePercentPerDay) && (
+                <Field
+                  label="Default Penalty / Day"
+                  value={fmtPercent(loan.defaultPenaltyFeePercentPerDay!)}
+                />
+              )}
+            </Section>
+          )}
+
+          {hasRelationships && (
+            <Section title="Relationships">
+              {loan.spouseName && <Field label="Spouse" value={loan.spouseName} />}
+              {guarantorEntries.map(([key, value]) => (
+                <Field key={key} label={labelize(key)} value={String(value)} />
               ))}
             </Section>
           )}
 
-          {/* Loan officer */}
           <Section title="Submitted by">
             <Field label="Name" value={submittedByName} />
             <Field label="Email" value={submittedByEmail} />
           </Section>
 
-          {/* Status history */}
           {loan.statusLogs.length > 0 && (
             <Section title="Status History">
               <div className="col-span-2 space-y-2 -mt-1">
@@ -126,14 +285,14 @@ export default function LoanDetailModal({ loan, onClose }: Props) {
                         {log.status}
                       </span>
                       {log.note && (
-                        <p className="mt-1 text-xs text-gray-500 italic">{log.note}</p>
+                        <p className="mt-1 text-xs italic text-gray-500">{log.note}</p>
                       )}
                       <p className="mt-0.5 text-xs text-gray-400">
                         by {log.user?.name || 'Unknown user'}
                       </p>
                     </div>
-                    <span className="text-xs text-gray-400 whitespace-nowrap ml-4">
-                      {fmt(log.createdAt)}
+                    <span className="ml-4 whitespace-nowrap text-xs text-gray-400">
+                      {fmtDate(log.createdAt)}
                     </span>
                   </div>
                 ))}
@@ -141,23 +300,70 @@ export default function LoanDetailModal({ loan, onClose }: Props) {
             </Section>
           )}
 
-          {/* Documents */}
-          {loan.documents.length > 0 && (
+          {contractDocs.length > 0 && (
+            <Section title="Loan Contracts">
+              <div className="col-span-2 -mt-1 space-y-2">
+                {contractDocs.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <svg
+                        className="h-4 w-4 shrink-0 text-[#36e07b]"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0120 9.414V19a2 2 0 01-2 2z"
+                        />
+                      </svg>
+                      <span className="truncate text-sm font-medium text-gray-900">
+                        {doc.label}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openDocument(doc.id)}
+                      className="ml-4 shrink-0 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-[#36e07b] hover:text-gray-900"
+                    >
+                      Open PDF
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {supportingDocs.length > 0 && (
             <Section title="Documents">
               <div className="col-span-2 flex flex-wrap gap-2 -mt-1">
-                {loan.documents.map((doc) => (
-                  <a
+                {supportingDocs.map((doc) => (
+                  <button
                     key={doc.id}
-                    href={`${API_URL}/documents/${doc.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-[#36e07b] hover:text-gray-900 transition-colors"
+                    type="button"
+                    onClick={() => openDocument(doc.id)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-[#36e07b] hover:text-gray-900"
                   >
-                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0120 9.414V19a2 2 0 01-2 2z" />
+                    <svg
+                      className="h-3.5 w-3.5 shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0120 9.414V19a2 2 0 01-2 2z"
+                      />
                     </svg>
                     {doc.label || doc.filename}
-                  </a>
+                  </button>
                 ))}
               </div>
             </Section>
@@ -166,8 +372,9 @@ export default function LoanDetailModal({ loan, onClose }: Props) {
 
         <div className="mt-8 flex justify-end">
           <button
+            type="button"
             onClick={onClose}
-            className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 hover:border-gray-300 hover:text-gray-900 transition-colors"
+            className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:border-gray-300 hover:text-gray-900"
           >
             Close
           </button>
@@ -180,7 +387,7 @@ export default function LoanDetailModal({ loan, onClose }: Props) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-[0.15em] text-gray-400 mb-3">
+      <p className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">
         {title}
       </p>
       <div className="grid grid-cols-2 gap-x-6 gap-y-3">{children}</div>
@@ -188,11 +395,19 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-function Field({ label, value, full }: { label: string; value: string; full?: boolean }) {
+function Field({
+  label,
+  value,
+  full,
+}: {
+  label: string
+  value: string
+  full?: boolean
+}) {
   return (
     <div className={full ? 'col-span-2' : ''}>
       <p className="text-xs text-gray-400">{label}</p>
-      <p className="text-sm font-medium text-gray-900 mt-0.5">{value}</p>
+      <p className="mt-0.5 text-sm font-medium text-gray-900">{value}</p>
     </div>
   )
 }

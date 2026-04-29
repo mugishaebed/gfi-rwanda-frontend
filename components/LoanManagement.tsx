@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
 import { apiFetch } from '@/lib/api'
 import type { Loan, LoansResponse, LoanStatus } from '@/lib/types'
-import LoanDetailModal from './LoanDetailModal'
 import RecordRepaymentForm from './RecordRepaymentForm'
 
 const STATUS_STYLES: Record<LoanStatus, string> = {
@@ -21,7 +20,6 @@ export default function LoanManagement() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [filter, setFilter] = useState<Filter>('ALL')
-  const [viewingLoan, setViewingLoan] = useState<Loan | null>(null)
   const [recordingRepayment, setRecordingRepayment] = useState<Loan | null>(null)
 
   const fetchLoans = useCallback(async () => {
@@ -182,12 +180,12 @@ export default function LoanManagement() {
                     {fmt(loan.createdAt)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm flex gap-3">
-                    <button
-                      onClick={() => setViewingLoan(loan)}
+                    <Link
+                      href={`/dashboard/loan-officer/loans/${loan.id}`}
                       className="font-medium text-[#36e07b] hover:text-[#1bcb68] transition-colors"
                     >
                       View
-                    </button>
+                    </Link>
                     {loan.status === 'APPROVED' && (
                       <button
                         onClick={() => setRecordingRepayment(loan)}
@@ -227,10 +225,6 @@ export default function LoanManagement() {
             </button>
           </div>
         </div>
-      )}
-
-      {viewingLoan && (
-        <LoanDetailModal loan={viewingLoan} onClose={() => setViewingLoan(null)} />
       )}
 
       {recordingRepayment && (

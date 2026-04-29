@@ -1,10 +1,10 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
 import { apiFetch } from '@/lib/api'
 import { approveLoan, rejectLoan } from '@/lib/loan-actions'
 import type { Loan, LoansResponse, LoanStatus } from '@/lib/types'
-import LoanDetailModal from './LoanDetailModal'
 
 const STATUS_STYLES: Record<LoanStatus, string> = {
   PENDING: 'bg-yellow-50 text-yellow-700',
@@ -116,7 +116,6 @@ export default function LoanApprovalManagement() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [filter, setFilter] = useState<Filter>('PENDING')
-  const [viewingLoan, setViewingLoan] = useState<Loan | null>(null)
   const [reviewing, setReviewing] = useState<{ loan: Loan; action: 'approve' | 'reject' } | null>(null)
 
   const fetchLoans = useCallback(async () => {
@@ -241,12 +240,12 @@ export default function LoanApprovalManagement() {
                     {fmt(loan.createdAt)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm flex gap-3">
-                    <button
-                      onClick={() => setViewingLoan(loan)}
+                    <Link
+                      href={`/dashboard/general-manager/loans/${loan.id}`}
                       className="font-medium text-[#36e07b] hover:text-[#1bcb68] transition-colors"
                     >
                       View
-                    </button>
+                    </Link>
                     {loan.status === 'PENDING' && (
                       <>
                         <button
@@ -292,10 +291,6 @@ export default function LoanApprovalManagement() {
             </button>
           </div>
         </div>
-      )}
-
-      {viewingLoan && (
-        <LoanDetailModal loan={viewingLoan} onClose={() => setViewingLoan(null)} />
       )}
 
       {reviewing && (

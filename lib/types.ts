@@ -4,7 +4,10 @@ export type RepaymentStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 export interface LoanDocument {
   id: string
   filename: string
+  originalFileName?: string
+  mimeType?: string
   label?: string
+  downloadUrl?: string
 }
 
 export interface StatusLog {
@@ -18,6 +21,21 @@ export interface StatusLog {
 export interface RepaymentTerm {
   dueDate: string
   amount: number
+}
+
+export interface RepaymentScheduleItem {
+  installmentNo?: number
+  dueDate: string
+  amount: number
+}
+
+export interface RepaymentTermsDetail {
+  currency?: string
+  installmentsCount?: number
+  amountPerInstallment?: number
+  periodMonths?: number
+  paymentDayOfMonth?: number
+  schedule?: RepaymentScheduleItem[]
 }
 
 export interface LoanClient {
@@ -34,9 +52,27 @@ export interface Loan {
   amount: number
   purpose: string
   status: LoanStatus
+  interestRatePercentPerMonth?: number
+  termInMonths?: number
+  termStartDate?: string
+  termEndDate?: string
+  disbursementWithinDays?: number
+  collateralType?: string
+  collateralEstimatedValue?: number
+  collateralLocation?: string
+  repaymentInstallmentsCount?: number
+  repaymentAmountPerMonth?: number
+  repaymentPeriodMonths?: number
+  paymentDayOfMonth?: number
+  loanProcessingFeePercent?: number
+  administrativeFeePercent?: number
+  loanApplicationFeePercent?: number
+  earlyRepaymentFeePercent?: number
+  defaultPenaltyFeePercentPerDay?: number
+  spouseName?: string
   comments?: string
-  guarantorInfo?: Record<string, string>
-  repaymentTerms: RepaymentTerm[]
+  guarantorInfo?: Record<string, string | number>
+  repaymentTerms?: RepaymentTerm[] | RepaymentTermsDetail
   activatedAt?: string
   createdAt: string
   updatedAt: string
