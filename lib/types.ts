@@ -101,6 +101,8 @@ export interface Repayment {
   loan: {
     id: string
     amount: number
+    outstandingBalance?: number
+    totalRepaidAmount?: number
     purpose: string
     client: LoanClient
   }
