@@ -1,5 +1,5 @@
-import LoanApprovalManagement from '@/components/LoanApprovalManagement'
+import LoanManagement from '@/components/LoanManagement'
 
 export default function GMLoansPage() {
-  return <LoanApprovalManagement />
+  return <LoanManagement role="GENERAL_MANAGER" />
 }

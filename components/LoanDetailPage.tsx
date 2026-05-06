@@ -76,16 +76,16 @@ function labelize(key: string) {
   return key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase())
 }
 
-// ─── ReviewModal ──────────────────────────────────────────────────────────────
+// ─── Review popover ───────────────────────────────────────────────────────────
 
-interface ReviewModalProps {
+interface ReviewPopoverProps {
   loanId: string
   action: 'approve' | 'reject'
   onClose: () => void
   onDone: () => void
 }
 
-function ReviewModal({ loanId, action, onClose, onDone }: ReviewModalProps) {
+function ReviewPopover({ loanId, action, onClose, onDone }: ReviewPopoverProps) {
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -114,10 +114,12 @@ function ReviewModal({ loanId, action, onClose, onDone }: ReviewModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
-        <div className="mb-5 flex items-start justify-between">
-          <div>
+    <div className="absolute right-0 top-full z-40 mt-3 w-96 max-w-[calc(100vw-2rem)] rounded-2xl border border-gray-200 bg-white p-5 shadow-xl">
+      <div className="absolute -top-2 right-8 h-4 w-4 rotate-45 border-l border-t border-gray-200 bg-white" />
+
+      <div className="relative">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div className="min-w-0">
             <p
               className={`mb-1 text-xs font-semibold uppercase tracking-[0.2em] ${
                 action === 'approve' ? 'text-[#36e07b]' : 'text-red-500'
@@ -125,13 +127,14 @@ function ReviewModal({ loanId, action, onClose, onDone }: ReviewModalProps) {
             >
               {action === 'approve' ? 'Approve' : 'Reject'} Loan
             </p>
-            <h3 className="text-xl font-bold text-gray-900">Confirm decision</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Confirm decision</h3>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="mt-1 text-lg leading-none text-gray-300 transition-colors hover:text-gray-600"
+            className="mt-0.5 text-lg leading-none text-gray-300 transition-colors hover:text-gray-600"
           >
-            ✕
+            x
           </button>
         </div>
 
@@ -160,14 +163,14 @@ function ReviewModal({ loanId, action, onClose, onDone }: ReviewModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:border-gray-300 hover:text-gray-900"
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-gray-300 hover:text-gray-900"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50 ${
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
                 action === 'approve'
                   ? 'bg-[#36e07b] text-gray-900 hover:bg-[#1bcb68]'
                   : 'bg-red-500 text-white hover:bg-red-600'
@@ -367,7 +370,10 @@ export default function LoanDetailPage({ loanId, role }: Props) {
   }
 
   const stats = [
-    { label: 'Loan Amount', value: fmtMoney(loan.amount) },
+    { label: 'Original Amount', value: fmtMoney(loan.amount) },
+    loan.outstandingBalance !== undefined
+      ? { label: 'Outstanding Balance', value: fmtMoney(loan.outstandingBalance) }
+      : null,
     hasVal(loan.termInMonths) ? { label: 'Term', value: `${loan.termInMonths} months` } : null,
     hasVal(loan.interestRatePercentPerMonth)
       ? { label: 'Interest / Month', value: fmtPct(loan.interestRatePercentPerMonth!) }
@@ -409,7 +415,7 @@ export default function LoanDetailPage({ loanId, role }: Props) {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 pt-1">
+          <div className="relative flex flex-wrap items-center justify-end gap-3 pt-1">
             <span
               className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusBadge}`}
             >
@@ -430,6 +436,17 @@ export default function LoanDetailPage({ loanId, role }: Props) {
                 >
                   Approve
                 </button>
+                {reviewing && (
+                  <ReviewPopover
+                    loanId={loan.id}
+                    action={reviewing}
+                    onClose={() => setReviewing(null)}
+                    onDone={() => {
+                      setReviewing(null)
+                      loadLoan()
+                    }}
+                  />
+                )}
               </>
             )}
 
@@ -463,7 +480,13 @@ export default function LoanDetailPage({ loanId, role }: Props) {
           {/* 01 — Loan Details */}
           <DetailSection number={nums.loanDetails} title="Loan Details">
             <FieldGrid>
-              <DetailField label="Amount" value={fmtMoney(loan.amount)} />
+              <DetailField label="Original Amount" value={fmtMoney(loan.amount)} />
+              {loan.outstandingBalance !== undefined && (
+                <DetailField label="Outstanding Balance" value={fmtMoney(loan.outstandingBalance)} />
+              )}
+              {loan.totalRepaidAmount !== undefined && (
+                <DetailField label="Total Repaid" value={fmtMoney(loan.totalRepaidAmount)} />
+              )}
               <DetailField label="Purpose" value={loan.purpose} />
               {hasVal(loan.interestRatePercentPerMonth) && (
                 <DetailField
@@ -763,19 +786,6 @@ export default function LoanDetailPage({ loanId, role }: Props) {
 
         </div>
       </div>
-
-      {/* ── Overlays ────────────────────────────────────────────────────────── */}
-      {reviewing && (
-        <ReviewModal
-          loanId={loan.id}
-          action={reviewing}
-          onClose={() => setReviewing(null)}
-          onDone={() => {
-            setReviewing(null)
-            loadLoan()
-          }}
-        />
-      )}
 
       {recordingRepayment && (
         <RecordRepaymentForm

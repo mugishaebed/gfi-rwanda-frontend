@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
 import { apiFetch } from '@/lib/api'
-import { deleteClientAction } from '@/lib/client-actions'
 import CreateClientForm from './CreateClientForm'
 import ClientDetailModal from './ClientDetailModal'
 
@@ -56,7 +55,21 @@ interface ClientsResponse {
   }
 }
 
-export default function ClientManagement() {
+interface ClientManagementProps {
+  kicker?: string
+  title?: string
+  canCreate?: boolean
+  canEdit?: boolean
+  emptyMessage?: string
+}
+
+export default function ClientManagement({
+  kicker = 'Client Management',
+  title = 'All Clients',
+  canCreate = true,
+  canEdit = true,
+  emptyMessage = 'No clients yet. Add your first client above.',
+}: ClientManagementProps) {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
@@ -64,12 +77,6 @@ export default function ClientManagement() {
   const [search, setSearch] = useState('')
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [viewingClient, setViewingClient] = useState<Client | null>(null)
-  const [deletingClient, setDeletingClient] = useState<Client | null>(null)
-  const [deleteLoading, setDeleteLoading] = useState(false)
-  const [notice, setNotice] = useState<{
-    type: 'success' | 'error'
-    message: string
-  } | null>(null)
 
   const fetchClients = useCallback(async () => {
     try {
@@ -88,28 +95,6 @@ export default function ClientManagement() {
     fetchClients()
   }, [fetchClients]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const showNotice = (type: 'success' | 'error', message: string) => {
-    setNotice({ type, message })
-    window.setTimeout(() => {
-      setNotice((current) => (current?.message === message ? null : current))
-    }, 4000)
-  }
-
-  const deleteClient = async (client: Client) => {
-    setDeleteLoading(true)
-    try {
-      await deleteClientAction(client.type, client.id)
-      setDeletingClient(null)
-      showNotice('success', 'Client deleted successfully.')
-      fetchClients()
-    } catch (error) {
-      console.error('Failed to delete client:', error)
-      showNotice('error', 'Failed to delete client. Please try again.')
-    } finally {
-      setDeleteLoading(false)
-    }
-  }
-
   const filteredClients = clients.filter((client) => {
     const query = search.trim().toLowerCase()
     if (!query) return true
@@ -123,36 +108,30 @@ export default function ClientManagement() {
 
   return (
     <div className="space-y-6">
-      {notice && (
-        <StatusDialog
-          type={notice.type}
-          message={notice.message}
-          onClose={() => setNotice(null)}
-        />
-      )}
-
       {/* Header */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-1">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#36e07b]">
-            Client Management
+            {kicker}
           </p>
-          <div className="flex gap-2">
-            <Link
-              href="/dashboard/loan-officer/clients/new?type=INDIVIDUAL"
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-[#36e07b] hover:text-gray-900"
-            >
-              + Individual
-            </Link>
-            <Link
-              href="/dashboard/loan-officer/clients/new?type=BUSINESS"
-              className="rounded-lg bg-[#36e07b] px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:bg-[#1bcb68]"
-            >
-              + Business
-            </Link>
-          </div>
+          {canCreate && (
+            <div className="flex gap-2">
+              <Link
+                href="/dashboard/loan-officer/clients/new?type=INDIVIDUAL"
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-[#36e07b] hover:text-gray-900"
+              >
+                + Individual
+              </Link>
+              <Link
+                href="/dashboard/loan-officer/clients/new?type=BUSINESS"
+                className="rounded-lg bg-[#36e07b] px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:bg-[#1bcb68]"
+              >
+                + Business
+              </Link>
+            </div>
+          )}
         </div>
-        <h2 className="text-lg font-semibold text-gray-900">All Clients</h2>
+        <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
         <div className="mt-4">
           <label htmlFor="client-search" className="sr-only">
             Search clients by account number or name
@@ -175,7 +154,7 @@ export default function ClientManagement() {
         </div>
       ) : clients.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center text-sm text-gray-400">
-          No clients yet. Add your first client above.
+          {emptyMessage}
         </div>
       ) : filteredClients.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center text-sm text-gray-400">
@@ -209,18 +188,14 @@ export default function ClientManagement() {
                     >
                       View
                     </button>
-                    <button
-                      onClick={() => setEditingClient(client)}
-                      className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => setDeletingClient(client)}
-                      className="font-medium text-gray-400 hover:text-red-600 transition-colors"
-                    >
-                      Delete
-                    </button>
+                    {canEdit && (
+                      <button
+                        onClick={() => setEditingClient(client)}
+                        className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                      >
+                        Edit
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -275,137 +250,6 @@ export default function ClientManagement() {
           }}
         />
       )}
-
-      {deletingClient && (
-        <DeleteClientDialog
-          client={deletingClient}
-          loading={deleteLoading}
-          onCancel={() => {
-            if (!deleteLoading) setDeletingClient(null)
-          }}
-          onConfirm={() => deleteClient(deletingClient)}
-        />
-      )}
-    </div>
-  )
-}
-
-function DeleteClientDialog({
-  client,
-  loading,
-  onCancel,
-  onConfirm,
-}: {
-  client: Client
-  loading: boolean
-  onCancel: () => void
-  onConfirm: () => void
-}) {
-  const clientName =
-    client.individual?.fullName ||
-    client.business?.businessName ||
-    client.accountNumber
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/35 p-4 backdrop-blur-[1px]">
-      <div className="w-full max-w-md rounded-[1.75rem] border border-gray-200 bg-white p-6">
-        <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-500">
-          <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86l-7.4 12.83A1 1 0 003.75 18h16.5a1 1 0 00.86-1.51l-7.4-12.83a1 1 0 00-1.72 0z" />
-          </svg>
-        </div>
-
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-red-500">
-          Delete Client
-        </p>
-        <h3 className="mt-2 text-2xl font-semibold text-gray-900">
-          Remove {clientName}?
-        </h3>
-        <p className="mt-3 text-sm leading-6 text-gray-500">
-          This action will permanently delete the client record for account{' '}
-          <span className="font-medium text-gray-700">{client.accountNumber}</span>. This cannot be
-          undone.
-        </p>
-
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={loading}
-            className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:border-gray-300 hover:text-gray-900 disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={loading}
-            className="rounded-lg bg-red-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-600 disabled:opacity-50"
-          >
-            {loading ? 'Deleting…' : 'Delete Client'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function StatusDialog({
-  type,
-  message,
-  onClose,
-}: {
-  type: 'success' | 'error'
-  message: string
-  onClose: () => void
-}) {
-  const isSuccess = type === 'success'
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/35 p-4 backdrop-blur-[1px]">
-      <div className="w-full max-w-md rounded-[1.75rem] border border-gray-200 bg-white p-6">
-        <div
-          className={`mb-5 flex h-12 w-12 items-center justify-center rounded-2xl ${
-            isSuccess ? 'bg-[#f3fff6] text-[#36e07b]' : 'bg-red-50 text-red-500'
-          }`}
-        >
-          {isSuccess ? (
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-          ) : (
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86l-7.4 12.83A1 1 0 003.75 18h16.5a1 1 0 00.86-1.51l-7.4-12.83a1 1 0 00-1.72 0z" />
-            </svg>
-          )}
-        </div>
-
-        <p
-          className={`text-xs font-semibold uppercase tracking-[0.2em] ${
-            isSuccess ? 'text-[#36e07b]' : 'text-red-500'
-          }`}
-        >
-          {isSuccess ? 'Success' : 'Delete Failed'}
-        </p>
-        <h3 className="mt-2 text-2xl font-semibold text-gray-900">
-          {isSuccess ? 'Client Removed' : 'Unable to Delete Client'}
-        </h3>
-        <p className="mt-3 text-sm leading-6 text-gray-500">{message}</p>
-
-        <div className="mt-6 flex justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors ${
-              isSuccess
-                ? 'bg-[#36e07b] text-gray-900 hover:bg-[#1bcb68]'
-                : 'bg-red-500 text-white hover:bg-red-600'
-            }`}
-          >
-            Close
-          </button>
-        </div>
-      </div>
     </div>
   )
 }

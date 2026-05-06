@@ -4,22 +4,41 @@ import { COOKIE_ACCESS_TOKEN, decodeJWT } from '@/lib/auth'
 import { apiFetch } from '@/lib/api'
 import type { LoansResponse, RepaymentsResponse } from '@/lib/types'
 
+interface CountResponse {
+  meta: { total: number }
+}
+
+function fmtMoney(v: number | string) {
+  const n = Number(v)
+  return isFinite(n)
+    ? n.toLocaleString('en-RW', { style: 'currency', currency: 'RWF' })
+    : String(v)
+}
+
 async function fetchStats(token: string) {
-  const [allLoans, pendingLoans, pendingRepayments] = await Promise.allSettled([
-    apiFetch<LoansResponse>('/loans?limit=1', { accessToken: token }),
+  const [allLoans, allClients, pendingLoans, pendingRepayments] = await Promise.allSettled([
+    apiFetch<LoansResponse>('/loans?limit=1000&status=APPROVED', { accessToken: token }),
+    apiFetch<CountResponse>('/clients?limit=1', { accessToken: token }),
     apiFetch<LoansResponse>('/loans?limit=1&status=PENDING', { accessToken: token }),
     apiFetch<RepaymentsResponse>('/repayments?limit=1&status=PENDING', { accessToken: token }),
   ])
 
+  const totalOutstanding = allLoans.status === 'fulfilled'
+    ? allLoans.value.data.reduce((sum, loan) => sum + (loan.outstandingBalance ?? loan.amount), 0)
+    : 0
+
   return {
     totalLoans:
       allLoans.status === 'fulfilled' ? String(allLoans.value.meta.total) : '—',
+    totalClients:
+      allClients.status === 'fulfilled' ? String(allClients.value.meta.total) : '—',
     pendingLoans:
       pendingLoans.status === 'fulfilled' ? String(pendingLoans.value.meta.total) : '—',
     pendingRepayments:
       pendingRepayments.status === 'fulfilled'
         ? String(pendingRepayments.value.meta.total)
         : '—',
+    totalOutstanding: fmtMoney(totalOutstanding),
   }
 }
 
@@ -45,8 +64,9 @@ export default async function GeneralManagerPage() {
 
       <div className="dashboard-grid">
         <StatCard label="Total Loans" value={stats.totalLoans} />
+        <StatCard label="Total Clients" value={stats.totalClients} />
         <StatCard label="Pending Loans" value={stats.pendingLoans} />
-        <StatCard label="Pending Repayments" value={stats.pendingRepayments} />
+        <StatCard label="Outstanding Balance" value={stats.totalOutstanding} />
       </div>
 
       <div className="dashboard-panel p-8">
@@ -57,7 +77,8 @@ export default async function GeneralManagerPage() {
           decisions without digging around the interface.
         </p>
         <div className="divide-y divide-gray-100">
-          <ActionRow label="Review Pending Loan Applications" href="/dashboard/general-manager/loans" />
+          <ActionRow label="View Client Directory" href="/dashboard/general-manager/clients" />
+          <ActionRow label="View All Loans" href="/dashboard/general-manager/loans" />
           <ActionRow label="Review Pending Repayments" href="/dashboard/general-manager/repayments" />
         </div>
       </div>

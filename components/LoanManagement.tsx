@@ -14,13 +14,19 @@ const STATUS_STYLES: Record<LoanStatus, string> = {
 
 type Filter = 'ALL' | LoanStatus
 
-export default function LoanManagement() {
+interface Props {
+  role?: 'LOAN_OFFICER' | 'GENERAL_MANAGER'
+}
+
+export default function LoanManagement({ role = 'LOAN_OFFICER' }: Props) {
   const [loans, setLoans] = useState<Loan[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [filter, setFilter] = useState<Filter>('ALL')
   const [recordingRepayment, setRecordingRepayment] = useState<Loan | null>(null)
+
+  const basePath = role === 'GENERAL_MANAGER' ? '/dashboard/general-manager/loans' : '/dashboard/loan-officer/loans'
 
   const fetchLoans = useCallback(async () => {
     try {
@@ -58,7 +64,7 @@ export default function LoanManagement() {
     })
 
   const fmtMoney = (n: number) =>
-    n.toLocaleString('en-RW', { style: 'currency', currency: 'RWF' })
+    `${n.toLocaleString('en-RW', { maximumFractionDigits: 2 })} Rwf`
 
   const FILTER_TABS: { label: string; value: Filter }[] = [
     { label: 'All', value: 'ALL' },
@@ -100,12 +106,14 @@ export default function LoanManagement() {
             ))}
           </div>
 
-          <Link
-            href="/dashboard/loan-officer/loans/new"
-            className="rounded-lg bg-[#36e07b] px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-[#1bcb68] transition-colors"
-          >
-            + New Application
-          </Link>
+          {role === 'LOAN_OFFICER' && (
+            <Link
+              href={`${basePath}/new`}
+              className="rounded-lg bg-[#36e07b] px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-[#1bcb68] transition-colors"
+            >
+              + New Application
+            </Link>
+          )}
         </div>
       </div>
 
@@ -139,19 +147,19 @@ export default function LoanManagement() {
                   Client
                 </th>
                 <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">
-                  Amount
+                  Original Amount
                 </th>
                 <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">
-                  Purpose
-                </th>
-                <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">
-                  Status
+                  Outstanding Balance
                 </th>
                 <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">
                   Date
                 </th>
                 <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">
-                  Actions
+                  Status
+                </th>
+                <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">
+                  Action
                 </th>
               </tr>
             </thead>
@@ -164,8 +172,13 @@ export default function LoanManagement() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-700">
                     {fmtMoney(loan.amount)}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 max-w-[200px] truncate">
-                    {loan.purpose}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-mono">
+                    <span className={loan.outstandingBalance ? (loan.outstandingBalance === 0 ? 'text-green-600 font-semibold' : 'text-gray-700') : 'text-gray-400'}>
+                      {loan.outstandingBalance !== undefined ? fmtMoney(loan.outstandingBalance) : fmtMoney(loan.amount)}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {fmt(loan.createdAt)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
@@ -176,17 +189,14 @@ export default function LoanManagement() {
                       {loan.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {fmt(loan.createdAt)}
-                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm flex gap-3">
                     <Link
-                      href={`/dashboard/loan-officer/loans/${loan.id}`}
+                      href={`${basePath}/${loan.id}`}
                       className="font-medium text-[#36e07b] hover:text-[#1bcb68] transition-colors"
                     >
                       View
                     </Link>
-                    {loan.status === 'APPROVED' && (
+                    {loan.status === 'APPROVED' && role === 'LOAN_OFFICER' && (
                       <button
                         onClick={() => setRecordingRepayment(loan)}
                         className="font-medium text-gray-500 hover:text-gray-900 transition-colors"

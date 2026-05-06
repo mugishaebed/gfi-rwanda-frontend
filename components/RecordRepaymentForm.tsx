@@ -89,9 +89,15 @@ export default function RecordRepaymentForm({ loan, onClose, onSuccess }: Props)
             </p>
             <h3 className="text-xl font-bold text-gray-900">{clientName}</h3>
             <p className="text-sm text-gray-400 mt-0.5">
-              Loan of{' '}
-              {loan.amount.toLocaleString('en-RW', { style: 'currency', currency: 'RWF' })} —{' '}
               {loan.purpose}
+            </p>
+            <p className="text-xs text-gray-500 mt-1.5">
+              Original: {loan.amount.toLocaleString('en-RW', { style: 'currency', currency: 'RWF' })}
+              {loan.outstandingBalance !== undefined && (
+                <>
+                  {' '} • Outstanding: {loan.outstandingBalance.toLocaleString('en-RW', { style: 'currency', currency: 'RWF' })}
+                </>
+              )}
             </p>
           </div>
           <button

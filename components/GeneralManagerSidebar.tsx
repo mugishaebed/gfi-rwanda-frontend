@@ -16,6 +16,15 @@ const SECTIONS = [
         ),
       },
       {
+        label: 'Clients',
+        href: '/dashboard/general-manager/clients',
+        icon: (
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a4 4 0 00-5.196-3.796M9 20H4v-2a4 4 0 015.196-3.796M15 7a4 4 0 11-8 0 4 4 0 018 0zm6 3a3 3 0 11-6 0 3 3 0 016 0zM3 10a3 3 0 116 0 3 3 0 01-6 0z" />
+          </svg>
+        ),
+      },
+      {
         label: 'Loans',
         href: '/dashboard/general-manager/loans',
         icon: (

@@ -50,6 +50,8 @@ export interface LoanClient {
 export interface Loan {
   id: string
   amount: number
+  outstandingBalance?: number
+  totalRepaidAmount?: number
   purpose: string
   status: LoanStatus
   interestRatePercentPerMonth?: number
@@ -77,7 +79,7 @@ export interface Loan {
   createdAt: string
   updatedAt: string
   client: LoanClient
-  user: { id: string; name: string; email: string }
+  user?: { id: string; name: string; email: string } | null
   statusLogs: StatusLog[]
   documents: LoanDocument[]
 }

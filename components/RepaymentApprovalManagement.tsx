@@ -14,16 +14,19 @@ const STATUS_STYLES: Record<RepaymentStatus, string> = {
 type Filter = 'ALL' | RepaymentStatus
 
 interface ReviewModalProps {
-  repaymentId: string
+  repayment: Repayment
   action: 'approve' | 'reject'
   onClose: () => void
   onDone: () => void
 }
 
-function ReviewModal({ repaymentId, action, onClose, onDone }: ReviewModalProps) {
+function ReviewModal({ repayment, action, onClose, onDone }: ReviewModalProps) {
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const fmtMoney = (n: number) =>
+    n.toLocaleString('en-RW', { style: 'currency', currency: 'RWF' })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -31,9 +34,9 @@ function ReviewModal({ repaymentId, action, onClose, onDone }: ReviewModalProps)
     setLoading(true)
     try {
       if (action === 'approve') {
-        await approveRepayment(repaymentId, note || undefined)
+        await approveRepayment(repayment.id, note || undefined)
       } else {
-        await rejectRepayment(repaymentId, note || undefined)
+        await rejectRepayment(repayment.id, note || undefined)
       }
       onDone()
     } catch (err) {
@@ -64,6 +67,27 @@ function ReviewModal({ repaymentId, action, onClose, onDone }: ReviewModalProps)
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {action === 'approve' && repayment.loan.outstandingBalance !== undefined && (
+            <div className="rounded-lg bg-green-50 border border-green-200 p-4 space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-green-700">Balance Impact</p>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <p className="text-gray-600">Current Outstanding</p>
+                  <p className="font-semibold text-gray-900">{fmtMoney(repayment.loan.outstandingBalance)}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Repayment Amount</p>
+                  <p className="font-semibold text-gray-900">- {fmtMoney(repayment.amountPaid)}</p>
+                </div>
+              </div>
+              <div className="border-t border-green-200 pt-2">
+                <p className="text-gray-600">New Balance After Approval</p>
+                <p className="text-lg font-bold text-green-700">
+                  {fmtMoney(Math.max(0, repayment.loan.outstandingBalance - repayment.amountPaid))}
+                </p>
+              </div>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Note <span className="text-xs font-normal text-gray-400">(optional)</span>
@@ -162,6 +186,29 @@ function RepaymentDetailModal({ repayment, onClose }: { repayment: Repayment; on
               <p className="text-xs text-gray-400">Original Loan Amount</p>
               <p className="text-sm font-medium text-gray-900">{fmtMoney(repayment.loan.amount)}</p>
             </div>
+            {repayment.loan.outstandingBalance !== undefined && (
+              <div>
+                <p className="text-xs text-gray-400">Outstanding Balance</p>
+                <p className="text-sm font-medium text-gray-900">{fmtMoney(repayment.loan.outstandingBalance)}</p>
+              </div>
+            )}
+            {repayment.loan.totalRepaidAmount !== undefined && (
+              <div>
+                <p className="text-xs text-gray-400">Total Repaid</p>
+                <p className="text-sm font-medium text-gray-900">{fmtMoney(repayment.loan.totalRepaidAmount)}</p>
+              </div>
+            )}
+            {repayment.loan.outstandingBalance !== undefined && repayment.status === 'PENDING' && (
+              <div className="col-span-2 rounded-lg bg-blue-50 border border-blue-200 p-3">
+                <p className="text-xs text-gray-400 mb-1">Projected Balance After Approval</p>
+                <p className="text-sm font-semibold text-blue-700">
+                  {fmtMoney(Math.max(0, repayment.loan.outstandingBalance - repayment.amountPaid))}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {fmtMoney(repayment.loan.outstandingBalance)} - {fmtMoney(repayment.amountPaid)} = {fmtMoney(Math.max(0, repayment.loan.outstandingBalance - repayment.amountPaid))}
+                </p>
+              </div>
+            )}
             <div>
               <p className="text-xs text-gray-400">Submitted by</p>
               <p className="text-sm font-medium text-gray-900">
@@ -424,7 +471,7 @@ export default function RepaymentApprovalManagement() {
 
       {reviewing && (
         <ReviewModal
-          repaymentId={reviewing.repayment.id}
+          repayment={reviewing.repayment}
           action={reviewing.action}
           onClose={() => setReviewing(null)}
           onDone={() => {

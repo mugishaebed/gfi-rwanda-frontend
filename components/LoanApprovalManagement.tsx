@@ -115,7 +115,7 @@ export default function LoanApprovalManagement() {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  const [filter, setFilter] = useState<Filter>('PENDING')
+  const [filter, setFilter] = useState<Filter>('ALL')
   const [reviewing, setReviewing] = useState<{ loan: Loan; action: 'approve' | 'reject' } | null>(null)
 
   const fetchLoans = useCallback(async () => {
@@ -150,13 +150,13 @@ export default function LoanApprovalManagement() {
     new Date(iso).toLocaleDateString('en-RW', { day: '2-digit', month: 'short', year: 'numeric' })
 
   const fmtMoney = (n: number) =>
-    n.toLocaleString('en-RW', { style: 'currency', currency: 'RWF' })
+    `${n.toLocaleString('en-RW', { maximumFractionDigits: 2 })} Rwf`
 
   const FILTER_TABS: { label: string; value: Filter }[] = [
+    { label: 'All', value: 'ALL' },
     { label: 'Pending', value: 'PENDING' },
     { label: 'Approved', value: 'APPROVED' },
     { label: 'Rejected', value: 'REJECTED' },
-    { label: 'All', value: 'ALL' },
   ]
 
   return (
@@ -209,11 +209,9 @@ export default function LoanApprovalManagement() {
               <tr className="border-b border-gray-100">
                 <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">Client</th>
                 <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">Amount</th>
-                <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">Purpose</th>
-                <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">Officer</th>
-                <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">Status</th>
                 <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">Date</th>
-                <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">Actions</th>
+                <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">Status</th>
+                <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -225,19 +223,13 @@ export default function LoanApprovalManagement() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-700">
                     {fmtMoney(loan.amount)}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 max-w-[160px] truncate">
-                    {loan.purpose}
-                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {loan.user.name}
+                    {fmt(loan.createdAt)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${STATUS_STYLES[loan.status]}`}>
                       {loan.status}
                     </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {fmt(loan.createdAt)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm flex gap-3">
                     <Link

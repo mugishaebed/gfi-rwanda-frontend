@@ -138,7 +138,13 @@ export default function LoanDetailModal({ loan, onClose }: Props) {
 
         <div className="space-y-6">
           <Section title="Loan Information">
-            <Field label="Amount" value={fmtMoney(loan.amount)} />
+            <Field label="Original Amount" value={fmtMoney(loan.amount)} />
+            {loan.outstandingBalance !== undefined && (
+              <Field label="Outstanding Balance" value={fmtMoney(loan.outstandingBalance)} />
+            )}
+            {loan.totalRepaidAmount !== undefined && (
+              <Field label="Total Repaid" value={fmtMoney(loan.totalRepaidAmount)} />
+            )}
             <Field label="Purpose" value={loan.purpose} />
             {hasValue(loan.interestRatePercentPerMonth) && (
               <Field
