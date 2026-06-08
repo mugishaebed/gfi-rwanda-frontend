@@ -20,6 +20,8 @@ interface ClientsResponse {
 interface LoanFormData {
   clientId: string
   amount: string
+  disbursedAmount: string
+  disbursedAt: string
   purpose: string
   interestRatePercentPerMonth: string
   termInMonths: string
@@ -62,6 +64,8 @@ interface Props {
 const INITIAL_FORM_DATA: LoanFormData = {
   clientId: '',
   amount: '',
+  disbursedAmount: '',
+  disbursedAt: '',
   purpose: '',
   interestRatePercentPerMonth: '',
   termInMonths: '',
@@ -120,6 +124,7 @@ export default function CreateLoanForm({ onClose, onSuccess, mode = 'modal' }: P
     phone: '',
     relationship: '',
   })
+  const [disburseDiffers, setDisburseDiffers] = useState(false)
   const [documents, setDocuments] = useState<File[]>([])
   const [documentLabels, setDocumentLabels] = useState<string[]>([])
   const [fileError, setFileError] = useState('')
@@ -212,6 +217,12 @@ export default function CreateLoanForm({ onClose, onSuccess, mode = 'modal' }: P
       const fd = new FormData()
       fd.append('clientId', formData.clientId)
       fd.append('amount', formData.amount)
+      if (disburseDiffers && formData.disbursedAmount) {
+        fd.append('disbursedAmount', formData.disbursedAmount)
+      }
+      if (formData.disbursedAt) {
+        fd.append('disbursedAt', formData.disbursedAt)
+      }
       fd.append('purpose', formData.purpose.trim())
       fd.append('interestRatePercentPerMonth', formData.interestRatePercentPerMonth)
       fd.append('termInMonths', formData.termInMonths)
@@ -343,6 +354,47 @@ export default function CreateLoanForm({ onClose, onSuccess, mode = 'modal' }: P
               className={INPUT_CLASS}
             />
           </Field>
+        </div>
+
+        <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 space-y-4">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={disburseDiffers}
+              onChange={(e) => {
+                setDisburseDiffers(e.target.checked)
+                if (!e.target.checked) handleInputChange('disbursedAmount', '')
+              }}
+              className="h-4 w-4 rounded border-gray-300 text-[#36e07b] focus:ring-[#36e07b]"
+            />
+            <span className="text-sm font-medium text-gray-700">
+              Amount disbursed differs from approved amount
+            </span>
+          </label>
+
+          <div className="grid gap-5 md:grid-cols-2">
+            {disburseDiffers && (
+              <Field label="Disbursed Amount (RWF)">
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={formData.disbursedAmount}
+                  onChange={(event) => handleInputChange('disbursedAmount', event.target.value)}
+                  placeholder="e.g. 490000"
+                  className={INPUT_CLASS}
+                />
+              </Field>
+            )}
+            <Field label="Disbursement Date">
+              <input
+                type="date"
+                value={formData.disbursedAt}
+                onChange={(event) => handleInputChange('disbursedAt', event.target.value)}
+                className={INPUT_CLASS}
+              />
+            </Field>
+          </div>
         </div>
       </Section>
 

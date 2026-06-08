@@ -179,6 +179,18 @@ function RepaymentDetailModal({ repayment, onClose }: { repayment: Repayment; on
               <p className="text-sm font-medium text-gray-900">{fmt(repayment.paymentDate)}</p>
             </div>
             <div>
+              <p className="text-xs text-gray-400">Principal Paid</p>
+              <p className="text-sm font-medium text-gray-900">
+                {repayment.principalPaid != null ? fmtMoney(repayment.principalPaid) : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400">Interest Paid</p>
+              <p className="text-sm font-medium text-gray-900">
+                {repayment.interestPaid != null ? fmtMoney(repayment.interestPaid) : '—'}
+              </p>
+            </div>
+            <div>
               <p className="text-xs text-gray-400">Loan</p>
               <p className="text-sm font-medium text-gray-900">{repayment.loan.purpose}</p>
             </div>

@@ -423,6 +423,12 @@ export default function LoanDetailPage({ loanId, role }: Props) {
   const stats = [
     { label: 'Source', value: SOURCE_LABEL[source] },
     { label: 'Original Amount', value: fmtMoney(loan.amount) },
+    loan.disbursedAmount != null
+      ? { label: 'Disbursed Amount', value: fmtMoney(loan.disbursedAmount) }
+      : null,
+    loan.disbursedAt
+      ? { label: 'Disbursement Date', value: fmtDate(loan.disbursedAt) }
+      : null,
     loan.outstandingBalance !== undefined
       ? { label: 'Outstanding Balance', value: fmtMoney(loan.outstandingBalance) }
       : null,
@@ -659,11 +665,28 @@ export default function LoanDetailPage({ loanId, role }: Props) {
           <DetailSection number={nums.loanDetails} title="Loan Details">
             <FieldGrid>
               <DetailField label="Original Amount" value={fmtMoney(loan.amount)} />
+              <DetailField
+                label="Disbursed Amount"
+                value={loan.disbursedAmount != null ? fmtMoney(loan.disbursedAmount) : '—'}
+              />
+              <DetailField
+                label="Disbursement Date"
+                value={loan.disbursedAt ? fmtDate(loan.disbursedAt) : '—'}
+              />
               {loan.outstandingBalance !== undefined && (
                 <DetailField label="Outstanding Balance" value={fmtMoney(loan.outstandingBalance)} />
               )}
               {loan.totalRepaidAmount !== undefined && (
                 <DetailField label="Total Repaid" value={fmtMoney(loan.totalRepaidAmount)} />
+              )}
+              {loan.totalInterestExpected !== undefined && (
+                <DetailField label="Total Interest Expected" value={fmtMoney(loan.totalInterestExpected)} />
+              )}
+              {loan.totalInterestReceived !== undefined && (
+                <DetailField label="Interest Received" value={fmtMoney(loan.totalInterestReceived)} />
+              )}
+              {loan.totalPrincipalRecovered !== undefined && (
+                <DetailField label="Principal Recovered" value={fmtMoney(loan.totalPrincipalRecovered)} />
               )}
               <DetailField label="Source" value={SOURCE_LABEL[source]} />
               {loan.loanNumber && <DetailField label="Loan Number" value={loan.loanNumber} />}

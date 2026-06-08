@@ -62,6 +62,11 @@ export interface Loan {
   loanNumber?: string
   amount: number
   currency?: string
+  disbursedAmount?: number | null
+  disbursedAt?: string | null
+  totalInterestExpected?: number
+  totalInterestReceived?: number
+  totalPrincipalRecovered?: number
   outstandingBalance?: number
   totalRepaidAmount?: number
   purpose: string
@@ -109,6 +114,8 @@ export interface Repayment {
   id: string
   loanId?: string
   amountPaid: number
+  principalPaid?: number | null
+  interestPaid?: number | null
   paymentDate: string
   notes?: string | null
   source?: RepaymentSource

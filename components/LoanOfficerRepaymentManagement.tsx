@@ -69,6 +69,14 @@ function RepaymentDetailModal({
           <div className="grid grid-cols-2 gap-x-6 gap-y-3">
             <DetailField label="Amount Paid" value={fmtMoney(repayment.amountPaid)} />
             <DetailField label="Payment Date" value={fmt(repayment.paymentDate)} />
+            <DetailField
+              label="Principal Paid"
+              value={repayment.principalPaid != null ? fmtMoney(repayment.principalPaid) : '—'}
+            />
+            <DetailField
+              label="Interest Paid"
+              value={repayment.interestPaid != null ? fmtMoney(repayment.interestPaid) : '—'}
+            />
             <DetailField label="Loan" value={repayment.loan.purpose} />
             <DetailField label="Original Loan Amount" value={fmtMoney(repayment.loan.amount)} />
             <DetailField label="Submitted by" value={repayment.user?.name || 'Unknown user'} />

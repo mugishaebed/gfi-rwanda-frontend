@@ -11,11 +11,14 @@ interface Props {
 
 export default function RecordRepaymentForm({ loan, onClose, onSuccess }: Props) {
   const [amountPaid, setAmountPaid] = useState('')
+  const [principalPaid, setPrincipalPaid] = useState('')
+  const [interestPaid, setInterestPaid] = useState('')
   const [paymentDate, setPaymentDate] = useState('')
   const [notes, setNotes] = useState('')
   const [documents, setDocuments] = useState<File[]>([])
   const [documentLabels, setDocumentLabels] = useState<string[]>([])
   const [fileError, setFileError] = useState('')
+  const [splitError, setSplitError] = useState('')
   const [submitError, setSubmitError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -41,12 +44,23 @@ export default function RecordRepaymentForm({ loan, onClose, onSuccess }: Props)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitError('')
+    setSplitError('')
+
+    if (principalPaid && interestPaid) {
+      if (Number(principalPaid) + Number(interestPaid) !== Number(amountPaid)) {
+        setSplitError('Principal + Interest must equal the total amount paid')
+        return
+      }
+    }
+
     setLoading(true)
 
     try {
       const fd = new FormData()
       fd.append('loanId', loan.id)
       fd.append('amountPaid', amountPaid)
+      if (principalPaid) fd.append('principalPaid', principalPaid)
+      if (interestPaid) fd.append('interestPaid', interestPaid)
       fd.append('paymentDate', paymentDate)
       if (notes) fd.append('notes', notes)
 
@@ -120,7 +134,7 @@ export default function RecordRepaymentForm({ loan, onClose, onSuccess }: Props)
                 min="0.01"
                 step="0.01"
                 value={amountPaid}
-                onChange={(e) => setAmountPaid(e.target.value)}
+                onChange={(e) => { setAmountPaid(e.target.value); setSplitError('') }}
                 placeholder="e.g. 50000"
                 className={inputClass}
               />
@@ -137,6 +151,41 @@ export default function RecordRepaymentForm({ loan, onClose, onSuccess }: Props)
                 className={inputClass}
               />
             </div>
+          </div>
+
+          <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">
+              Payment Breakdown <span className="normal-case font-normal tracking-normal text-gray-400">(optional)</span>
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Principal Paid (RWF)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={principalPaid}
+                  onChange={(e) => { setPrincipalPaid(e.target.value); setSplitError('') }}
+                  placeholder="e.g. 40000"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Interest Paid (RWF)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={interestPaid}
+                  onChange={(e) => { setInterestPaid(e.target.value); setSplitError('') }}
+                  placeholder="e.g. 10000"
+                  className={inputClass}
+                />
+              </div>
+            </div>
+            {splitError && (
+              <p className="text-xs text-red-600">{splitError}</p>
+            )}
           </div>
 
           <div>
@@ -201,7 +250,7 @@ export default function RecordRepaymentForm({ loan, onClose, onSuccess }: Props)
             </button>
             <button
               type="submit"
-              disabled={loading || !!fileError}
+              disabled={loading || !!fileError || !!splitError}
               className="rounded-lg bg-[#36e07b] px-5 py-2.5 text-sm font-semibold text-gray-900 hover:bg-[#1bcb68] disabled:opacity-50 transition-colors"
             >
               {loading ? 'Recording…' : 'Record Repayment'}
