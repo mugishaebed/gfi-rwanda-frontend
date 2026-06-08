@@ -1,9 +1,17 @@
-export type LoanStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+export type LoanStatus =
+  | 'PENDING'
+  | 'LOAN_OFFICER_APPROVED'
+  | 'LOAN_OFFICER_REJECTED'
+  | 'APPROVED'
+  | 'REJECTED'
+export type LoanSource = 'CLIENT_ONLINE' | 'STAFF_MANUAL'
 export type RepaymentStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+export type RepaymentSource = 'STAFF_MANUAL' | 'CLIENT_ONLINE'
+export type PaymentProvider = 'MOBILE_MONEY'
 
 export interface LoanDocument {
   id: string
-  filename: string
+  filename?: string
   originalFileName?: string
   mimeType?: string
   label?: string
@@ -12,7 +20,9 @@ export interface LoanDocument {
 
 export interface StatusLog {
   id: string
-  status: string
+  status?: string
+  fromStatus?: LoanStatus
+  toStatus?: LoanStatus
   note?: string
   createdAt: string
   user?: { id: string; name: string; email: string } | null
@@ -43,17 +53,23 @@ export interface LoanClient {
   type: 'INDIVIDUAL' | 'BUSINESS'
   email: string
   accountNumber: string
-  individual?: { fullName: string }
-  business?: { businessName: string }
+  individual?: { fullName?: string } | null
+  business?: { businessName?: string } | null
 }
 
 export interface Loan {
   id: string
+  loanNumber?: string
   amount: number
+  currency?: string
   outstandingBalance?: number
   totalRepaidAmount?: number
   purpose: string
+  source?: LoanSource
   status: LoanStatus
+  termsAccepted?: boolean
+  termsVersion?: string
+  disbursementMethod?: string
   interestRatePercentPerMonth?: number
   termInMonths?: number
   termStartDate?: string
@@ -91,15 +107,21 @@ export interface LoansResponse {
 
 export interface Repayment {
   id: string
+  loanId?: string
   amountPaid: number
   paymentDate: string
-  notes?: string
+  notes?: string | null
+  source?: RepaymentSource
+  paymentProvider?: PaymentProvider | null
+  paymentReference?: string | null
+  paymentPhoneNumber?: string | null
   status: RepaymentStatus
-  approvedAt?: string
+  approvedAt?: string | null
   createdAt: string
-  updatedAt: string
+  updatedAt?: string
   loan: {
     id: string
+    loanNumber?: string
     amount: number
     outstandingBalance?: number
     totalRepaidAmount?: number

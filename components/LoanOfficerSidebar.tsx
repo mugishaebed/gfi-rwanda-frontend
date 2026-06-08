@@ -42,6 +42,15 @@ const SECTIONS = [
           </svg>
         ),
       },
+      {
+        label: 'Online Payments',
+        href: '/dashboard/loan-officer/online-payments',
+        icon: (
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 7.5h16M6 5h12a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2zm2 9h4m5-3.5h.01M17 14h.01" />
+          </svg>
+        ),
+      },
     ],
   },
   {

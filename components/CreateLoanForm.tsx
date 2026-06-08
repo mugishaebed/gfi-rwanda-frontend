@@ -127,7 +127,7 @@ export default function CreateLoanForm({ onClose, onSuccess, mode = 'modal' }: P
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    apiFetch<ClientsResponse>('/clients?limit=100')
+    apiFetch<ClientsResponse>('/v1/clients?limit=100')
       .then((res) => setClients(res.data))
       .catch(console.error)
   }, [])

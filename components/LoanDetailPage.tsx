@@ -3,8 +3,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { apiFetch } from '@/lib/api'
-import { approveLoan, rejectLoan } from '@/lib/loan-actions'
-import type { Loan, LoanDocument, RepaymentScheduleItem, RepaymentTermsDetail } from '@/lib/types'
+import {
+  approveLoan,
+  approveLoanByOfficer,
+  rejectLoan,
+  rejectLoanByOfficer,
+} from '@/lib/loan-actions'
+import type { Loan, LoanDocument, LoanSource, RepaymentScheduleItem, RepaymentTermsDetail } from '@/lib/types'
 import RecordRepaymentForm from './RecordRepaymentForm'
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -16,8 +21,28 @@ const CONTRACT_LABELS = new Set([
 
 const STATUS_BADGE: Record<string, string> = {
   PENDING: 'bg-yellow-50 text-yellow-700',
-  APPROVED: 'bg-[#e8faf0] text-[#36e07b]',
+  LOAN_OFFICER_APPROVED: 'bg-sky-50 text-sky-700',
+  LOAN_OFFICER_REJECTED: 'bg-red-50 text-red-600',
+  APPROVED: 'bg-[#e8faf0] text-[#238a4d]',
   REJECTED: 'bg-red-50 text-red-600',
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  PENDING: 'Pending',
+  LOAN_OFFICER_APPROVED: 'Awaiting GM',
+  LOAN_OFFICER_REJECTED: 'Officer Rejected',
+  APPROVED: 'Approved',
+  REJECTED: 'Rejected',
+}
+
+const SOURCE_BADGE: Record<LoanSource, string> = {
+  CLIENT_ONLINE: 'bg-indigo-50 text-indigo-700',
+  STAFF_MANUAL: 'bg-gray-100 text-gray-700',
+}
+
+const SOURCE_LABEL: Record<LoanSource, string> = {
+  CLIENT_ONLINE: 'Online Request',
+  STAFF_MANUAL: 'Manual Application',
 }
 
 // ─── pure helpers ─────────────────────────────────────────────────────────────
@@ -81,11 +106,12 @@ function labelize(key: string) {
 interface ReviewPopoverProps {
   loanId: string
   action: 'approve' | 'reject'
+  role: 'LOAN_OFFICER' | 'GENERAL_MANAGER'
   onClose: () => void
   onDone: () => void
 }
 
-function ReviewPopover({ loanId, action, onClose, onDone }: ReviewPopoverProps) {
+function ReviewPopover({ loanId, action, role, onClose, onDone }: ReviewPopoverProps) {
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -95,7 +121,13 @@ function ReviewPopover({ loanId, action, onClose, onDone }: ReviewPopoverProps) 
     setError('')
     setLoading(true)
     try {
-      if (action === 'approve') {
+      if (role === 'LOAN_OFFICER') {
+        if (action === 'approve') {
+          await approveLoanByOfficer(loanId, note || undefined)
+        } else {
+          await rejectLoanByOfficer(loanId, note || undefined)
+        }
+      } else if (action === 'approve') {
         await approveLoan(loanId, note || undefined)
       } else {
         await rejectLoan(loanId, note || undefined)
@@ -301,6 +333,7 @@ export default function LoanDetailPage({ loanId, role }: Props) {
   }, [loanId])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadLoan()
   }, [loadLoan])
 
@@ -336,6 +369,8 @@ export default function LoanDetailPage({ loanId, role }: Props) {
   const schedule = getSchedule(loan)
   const contractDocs = loan.documents.filter(isContract)
   const supportingDocs = loan.documents.filter((d) => !isContract(d))
+  const source = loan.source ?? 'STAFF_MANUAL'
+  const isOnlineRequest = source === 'CLIENT_ONLINE'
   const guarantorEntries = loan.guarantorInfo
     ? Object.entries(loan.guarantorInfo).filter(([, v]) => hasVal(v))
     : []
@@ -352,6 +387,22 @@ export default function LoanDetailPage({ loanId, role }: Props) {
     hasVal(loan.earlyRepaymentFeePercent) ||
     hasVal(loan.defaultPenaltyFeePercentPerDay)
   const hasRelationships = hasVal(loan.spouseName) || guarantorEntries.length > 0
+  const submittedByName =
+    source === 'CLIENT_ONLINE' && !loan.user?.name
+      ? 'Client online portal'
+      : loan.user?.name || 'Unknown'
+  const submittedByEmail =
+    source === 'CLIENT_ONLINE' && !loan.user?.email
+      ? loan.client.email
+      : loan.user?.email || '-'
+  const canReview =
+    role === 'LOAN_OFFICER'
+      ? loan.status === 'PENDING'
+      : loan.status === 'LOAN_OFFICER_APPROVED'
+  const totalRepayment =
+    loan.repaymentAmountPerMonth ?? terms?.amountPerInstallment ?? loan.outstandingBalance
+  const interestAmount =
+    totalRepayment !== undefined ? Math.max(0, totalRepayment - loan.amount) : undefined
 
   // ── numbered section labels (computed once, skipping absent sections) ──
   let n = 0
@@ -370,6 +421,7 @@ export default function LoanDetailPage({ loanId, role }: Props) {
   }
 
   const stats = [
+    { label: 'Source', value: SOURCE_LABEL[source] },
     { label: 'Original Amount', value: fmtMoney(loan.amount) },
     loan.outstandingBalance !== undefined
       ? { label: 'Outstanding Balance', value: fmtMoney(loan.outstandingBalance) }
@@ -382,6 +434,7 @@ export default function LoanDetailPage({ loanId, role }: Props) {
   ].filter(Boolean) as { label: string; value: string }[]
 
   const statusBadge = STATUS_BADGE[loan.status] ?? 'bg-gray-100 text-gray-500'
+  const sourceBadge = SOURCE_BADGE[source]
 
   return (
     <div className="animate-fade-up space-y-5">
@@ -411,18 +464,25 @@ export default function LoanDetailPage({ loanId, role }: Props) {
             <p className="mt-1.5 text-sm text-gray-400">
               {loan.client.accountNumber}
               <span className="mx-2 text-gray-200">·</span>
-              <span className="font-mono text-xs">{loan.id.slice(0, 13)}…</span>
+              <span className="font-mono text-xs">
+                {loan.loanNumber ?? `${loan.id.slice(0, 13)}...`}
+              </span>
             </p>
           </div>
 
           <div className="relative flex flex-wrap items-center justify-end gap-3 pt-1">
             <span
+              className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${sourceBadge}`}
+            >
+              {SOURCE_LABEL[source]}
+            </span>
+            <span
               className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${statusBadge}`}
             >
-              {loan.status}
+              {STATUS_LABEL[loan.status] ?? loan.status}
             </span>
 
-            {role === 'GENERAL_MANAGER' && loan.status === 'PENDING' && (
+            {canReview && (
               <>
                 <button
                   onClick={() => setReviewing('reject')}
@@ -440,6 +500,7 @@ export default function LoanDetailPage({ loanId, role }: Props) {
                   <ReviewPopover
                     loanId={loan.id}
                     action={reviewing}
+                    role={role}
                     onClose={() => setReviewing(null)}
                     onDone={() => {
                       setReviewing(null)
@@ -477,6 +538,123 @@ export default function LoanDetailPage({ loanId, role }: Props) {
       <div className="rounded-[1.75rem] border border-gray-200 bg-white p-6 lg:p-8">
         <div className="space-y-8">
 
+          {isOnlineRequest ? (
+            <>
+              <DetailSection number="01" title="Online Request">
+                <FieldGrid>
+                  {loan.loanNumber && <DetailField label="Loan Number" value={loan.loanNumber} />}
+                  <DetailField label="Client" value={clientName} />
+                  <DetailField label="Account Number" value={loan.client.accountNumber} />
+                  <DetailField label="Client Email" value={loan.client.email} />
+                  <DetailField label="Requested Amount" value={fmtMoney(loan.amount)} />
+                  <DetailField label="Applied" value={fmtDate(loan.createdAt)} />
+                </FieldGrid>
+              </DetailSection>
+
+              <DetailSection number="02" title="Request Terms">
+                <FieldGrid>
+                  {hasVal(loan.termInMonths) && (
+                    <DetailField label="Term" value={`${loan.termInMonths} months`} />
+                  )}
+                  {hasVal(loan.interestRatePercentPerMonth) && (
+                    <DetailField
+                      label="Interest Rate / Month"
+                      value={fmtPct(loan.interestRatePercentPerMonth!)}
+                    />
+                  )}
+                  {loan.termStartDate && (
+                    <DetailField label="Term Start" value={fmtDate(loan.termStartDate)} />
+                  )}
+                  {loan.termEndDate && (
+                    <DetailField label="Term End" value={fmtDate(loan.termEndDate)} />
+                  )}
+                  {totalRepayment !== undefined && (
+                    <DetailField label="Total Repayment" value={fmtMoney(totalRepayment)} />
+                  )}
+                  {interestAmount !== undefined && (
+                    <DetailField label="Interest" value={fmtMoney(interestAmount)} />
+                  )}
+                  {loan.outstandingBalance !== undefined && (
+                    <DetailField
+                      label="Outstanding Balance"
+                      value={fmtMoney(loan.outstandingBalance)}
+                    />
+                  )}
+                </FieldGrid>
+
+                {schedule.length > 0 && (
+                  <div className="mt-6">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">
+                      Schedule
+                    </p>
+                    <div className="overflow-hidden rounded-xl border border-gray-100">
+                      <table className="min-w-full">
+                        <thead>
+                          <tr className="border-b border-gray-100 bg-gray-50">
+                            <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-[0.12em] text-gray-400">
+                              #
+                            </th>
+                            <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-[0.12em] text-gray-400">
+                              Due Date
+                            </th>
+                            <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-[0.12em] text-gray-400">
+                              Amount
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {schedule.map((item, i) => (
+                            <tr key={i} className="transition-colors hover:bg-gray-50/60">
+                              <td className="px-4 py-3 text-xs text-gray-400">
+                                {item.installmentNo ?? i + 1}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-700">
+                                {fmtDate(item.dueDate)}
+                              </td>
+                              <td className="px-4 py-3 text-right text-sm font-medium text-gray-900">
+                                {fmtMoney(item.amount)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </DetailSection>
+
+              {supportingDocs.length > 0 && (
+                <DetailSection number="03" title="Supporting Documents">
+                  <div className="flex flex-wrap gap-2">
+                    {supportingDocs.map((doc) => (
+                      <button
+                        key={doc.id}
+                        type="button"
+                        onClick={() => openDoc(doc.id)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-[#36e07b] hover:text-gray-900"
+                      >
+                        <svg
+                          className="h-3.5 w-3.5 shrink-0"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0120 9.414V19a2 2 0 01-2 2z"
+                          />
+                        </svg>
+                        {doc.label || doc.filename}
+                      </button>
+                    ))}
+                  </div>
+                </DetailSection>
+              )}
+            </>
+          ) : (
+            <>
           {/* 01 — Loan Details */}
           <DetailSection number={nums.loanDetails} title="Loan Details">
             <FieldGrid>
@@ -487,6 +665,8 @@ export default function LoanDetailPage({ loanId, role }: Props) {
               {loan.totalRepaidAmount !== undefined && (
                 <DetailField label="Total Repaid" value={fmtMoney(loan.totalRepaidAmount)} />
               )}
+              <DetailField label="Source" value={SOURCE_LABEL[source]} />
+              {loan.loanNumber && <DetailField label="Loan Number" value={loan.loanNumber} />}
               <DetailField label="Purpose" value={loan.purpose} />
               {hasVal(loan.interestRatePercentPerMonth) && (
                 <DetailField
@@ -673,8 +853,8 @@ export default function LoanDetailPage({ loanId, role }: Props) {
           {/* 06 — Submitted By */}
           <DetailSection number={nums.submittedBy} title="Submitted By">
             <FieldGrid>
-              <DetailField label="Name" value={loan.user?.name || 'Unknown'} />
-              <DetailField label="Email" value={loan.user?.email || '—'} />
+              <DetailField label="Name" value={submittedByName} />
+              <DetailField label="Email" value={submittedByEmail} />
             </FieldGrid>
           </DetailSection>
 
@@ -682,31 +862,35 @@ export default function LoanDetailPage({ loanId, role }: Props) {
           {loan.statusLogs.length > 0 && (
             <DetailSection number={nums.statusHistory} title="Status History">
               <div className="space-y-2.5">
-                {loan.statusLogs.map((log) => (
-                  <div
-                    key={log.id}
-                    className="flex items-start gap-4 rounded-xl bg-gray-50 px-4 py-3.5"
-                  >
-                    <span
-                      className={`mt-0.5 inline-flex shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${
-                        STATUS_BADGE[log.status] ?? 'bg-gray-100 text-gray-500'
-                      }`}
+                {loan.statusLogs.map((log) => {
+                  const status = log.status ?? log.toStatus ?? log.fromStatus ?? 'PENDING'
+
+                  return (
+                    <div
+                      key={log.id}
+                      className="flex items-start gap-4 rounded-xl bg-gray-50 px-4 py-3.5"
                     >
-                      {log.status}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      {log.note && (
-                        <p className="mb-0.5 text-sm text-gray-700">{log.note}</p>
-                      )}
-                      <p className="text-xs text-gray-400">
-                        by {log.user?.name || 'Unknown'}
-                      </p>
+                      <span
+                        className={`mt-0.5 inline-flex shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${
+                          STATUS_BADGE[status] ?? 'bg-gray-100 text-gray-500'
+                        }`}
+                      >
+                        {STATUS_LABEL[status] ?? status}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        {log.note && (
+                          <p className="mb-0.5 text-sm text-gray-700">{log.note}</p>
+                        )}
+                        <p className="text-xs text-gray-400">
+                          by {log.user?.name || 'Unknown'}
+                        </p>
+                      </div>
+                      <span className="shrink-0 whitespace-nowrap text-xs text-gray-400">
+                        {fmtDate(log.createdAt)}
+                      </span>
                     </div>
-                    <span className="shrink-0 whitespace-nowrap text-xs text-gray-400">
-                      {fmtDate(log.createdAt)}
-                    </span>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </DetailSection>
           )}
@@ -782,6 +966,9 @@ export default function LoanDetailPage({ loanId, role }: Props) {
                 ))}
               </div>
             </DetailSection>
+          )}
+
+            </>
           )}
 
         </div>

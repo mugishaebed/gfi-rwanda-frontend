@@ -36,6 +36,7 @@ export default async function LoanOfficerOverviewPage() {
           <ActionRow label="Manage Clients" href="/dashboard/loan-officer/clients" />
           <ActionRow label="View Loan Applications" href="/dashboard/loan-officer/loans" />
           <ActionRow label="Track Repayment Records" href="/dashboard/loan-officer/repayments" />
+          <ActionRow label="View Online Payments" href="/dashboard/loan-officer/online-payments" />
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { COOKIE_ACCESS_TOKEN } from '@/lib/auth'
+import { buildApiUrl } from '@/lib/api-url'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
 
@@ -17,7 +18,7 @@ async function handler(
 
   const { path } = await params
   const search = request.nextUrl.search
-  const backendUrl = `${API_URL}/${path.join('/')}${search}`
+  const backendUrl = buildApiUrl(API_URL, `/${path.join('/')}${search}`)
 
   const headers = new Headers()
   headers.set('Authorization', `Bearer ${accessToken}`)

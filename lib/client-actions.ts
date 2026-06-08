@@ -2,6 +2,7 @@
 
 import { cookies } from 'next/headers'
 import { COOKIE_ACCESS_TOKEN } from './auth'
+import { buildApiUrl } from './api-url'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
 
@@ -17,6 +18,8 @@ async function getToken(): Promise<string> {
   if (!token) throw new Error('Unauthorized')
   return token
 }
+
+const CLIENTS_BASE = buildApiUrl(API_URL, '/v1/clients')
 
 export async function saveClient(
   type: 'INDIVIDUAL' | 'BUSINESS',
@@ -46,7 +49,7 @@ export async function saveClient(
     out.append('documents', blob, file.name)
   }
 
-  const response = await fetch(`${API_URL}/clients/${path}`, {
+  const response = await fetch(`${CLIENTS_BASE}/${path}`, {
     method,
     headers: { Authorization: `Bearer ${token}` },
     body: out,
@@ -68,8 +71,22 @@ export async function deleteClientAction(
     ? `individual/${clientId}`
     : `business/${clientId}`
 
-  const response = await fetch(`${API_URL}/clients/${path}`, {
+  const response = await fetch(`${CLIENTS_BASE}/${path}`, {
     method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text)
+  }
+}
+
+export async function approveClientProfile(clientId: string): Promise<void> {
+  const token = await getToken()
+
+  const response = await fetch(`${CLIENTS_BASE}/${clientId}/approve-profile`, {
+    method: 'PUT',
     headers: { Authorization: `Bearer ${token}` },
   })
 

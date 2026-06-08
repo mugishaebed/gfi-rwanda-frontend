@@ -16,24 +16,49 @@ function fmtMoney(v: number | string) {
 }
 
 async function fetchStats(token: string) {
-  const [allLoans, allClients, pendingLoans, pendingRepayments] = await Promise.allSettled([
+  const [
+    approvedLoans,
+    allClients,
+    reviewLoans,
+    onlineReviewLoans,
+    manualReviewLoans,
+    pendingRepayments,
+  ] = await Promise.allSettled([
     apiFetch<LoansResponse>('/loans?limit=1000&status=APPROVED', { accessToken: token }),
-    apiFetch<CountResponse>('/clients?limit=1', { accessToken: token }),
-    apiFetch<LoansResponse>('/loans?limit=1&status=PENDING', { accessToken: token }),
+    apiFetch<CountResponse>('/v1/clients?limit=1', { accessToken: token }),
+    apiFetch<LoansResponse>('/loans?limit=1&status=LOAN_OFFICER_APPROVED', {
+      accessToken: token,
+    }),
+    apiFetch<LoansResponse>(
+      '/loans?limit=1&status=LOAN_OFFICER_APPROVED&source=CLIENT_ONLINE',
+      { accessToken: token }
+    ),
+    apiFetch<LoansResponse>(
+      '/loans?limit=1&status=LOAN_OFFICER_APPROVED&source=STAFF_MANUAL',
+      { accessToken: token }
+    ),
     apiFetch<RepaymentsResponse>('/repayments?limit=1&status=PENDING', { accessToken: token }),
   ])
 
-  const totalOutstanding = allLoans.status === 'fulfilled'
-    ? allLoans.value.data.reduce((sum, loan) => sum + (loan.outstandingBalance ?? loan.amount), 0)
+  const totalOutstanding = approvedLoans.status === 'fulfilled'
+    ? approvedLoans.value.data.reduce((sum, loan) => sum + (loan.outstandingBalance ?? loan.amount), 0)
     : 0
 
   return {
-    totalLoans:
-      allLoans.status === 'fulfilled' ? String(allLoans.value.meta.total) : '—',
+    approvedLoans:
+      approvedLoans.status === 'fulfilled' ? String(approvedLoans.value.meta.total) : '—',
     totalClients:
       allClients.status === 'fulfilled' ? String(allClients.value.meta.total) : '—',
-    pendingLoans:
-      pendingLoans.status === 'fulfilled' ? String(pendingLoans.value.meta.total) : '—',
+    reviewLoans:
+      reviewLoans.status === 'fulfilled' ? String(reviewLoans.value.meta.total) : '—',
+    onlineReviewLoans:
+      onlineReviewLoans.status === 'fulfilled'
+        ? String(onlineReviewLoans.value.meta.total)
+        : '—',
+    manualReviewLoans:
+      manualReviewLoans.status === 'fulfilled'
+        ? String(manualReviewLoans.value.meta.total)
+        : '—',
     pendingRepayments:
       pendingRepayments.status === 'fulfilled'
         ? String(pendingRepayments.value.meta.total)
@@ -63,9 +88,12 @@ export default async function GeneralManagerPage() {
       </div>
 
       <div className="dashboard-grid">
-        <StatCard label="Total Loans" value={stats.totalLoans} />
+        <StatCard label="Approved Loans" value={stats.approvedLoans} />
         <StatCard label="Total Clients" value={stats.totalClients} />
-        <StatCard label="Pending Loans" value={stats.pendingLoans} />
+        <StatCard label="Awaiting GM" value={stats.reviewLoans} />
+        <StatCard label="Online Review" value={stats.onlineReviewLoans} />
+        <StatCard label="Manual Review" value={stats.manualReviewLoans} />
+        <StatCard label="Pending Repayments" value={stats.pendingRepayments} />
         <StatCard label="Outstanding Balance" value={stats.totalOutstanding} />
       </div>
 
@@ -78,8 +106,17 @@ export default async function GeneralManagerPage() {
         </p>
         <div className="divide-y divide-gray-100">
           <ActionRow label="View Client Directory" href="/dashboard/general-manager/clients" />
-          <ActionRow label="View All Loans" href="/dashboard/general-manager/loans" />
+          <ActionRow
+            label="View Online Pipeline"
+            href="/dashboard/general-manager/loans?filter=online-all"
+          />
+          <ActionRow
+            label="View Manual Pipeline"
+            href="/dashboard/general-manager/loans?filter=manual-all"
+          />
+          <ActionRow label="View All Loans" href="/dashboard/general-manager/loans?filter=all" />
           <ActionRow label="Review Pending Repayments" href="/dashboard/general-manager/repayments" />
+          <ActionRow label="View Online Payments" href="/dashboard/general-manager/online-payments" />
         </div>
       </div>
     </div>

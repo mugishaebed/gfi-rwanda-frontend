@@ -2,6 +2,7 @@
 
 import { cookies } from 'next/headers'
 import { COOKIE_ACCESS_TOKEN } from './auth'
+import { buildApiUrl } from './api-url'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
 
@@ -15,7 +16,7 @@ async function getToken(): Promise<string> {
 async function reviewAction(path: string, note?: string): Promise<void> {
   const token = await getToken()
 
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await fetch(buildApiUrl(API_URL, path), {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -36,6 +37,14 @@ export async function approveLoan(id: string, note?: string) {
 
 export async function rejectLoan(id: string, note?: string) {
   return reviewAction(`/loans/${id}/reject`, note)
+}
+
+export async function approveLoanByOfficer(id: string, note?: string) {
+  return reviewAction(`/loans/${id}/officer-approve`, note)
+}
+
+export async function rejectLoanByOfficer(id: string, note?: string) {
+  return reviewAction(`/loans/${id}/officer-reject`, note)
 }
 
 export async function approveRepayment(id: string, note?: string) {

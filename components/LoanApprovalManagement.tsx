@@ -6,10 +6,20 @@ import { apiFetch } from '@/lib/api'
 import { approveLoan, rejectLoan } from '@/lib/loan-actions'
 import type { Loan, LoansResponse, LoanStatus } from '@/lib/types'
 
-const STATUS_STYLES: Record<LoanStatus, string> = {
+const STATUS_STYLES: Record<string, string> = {
   PENDING: 'bg-yellow-50 text-yellow-700',
-  APPROVED: 'bg-[#e8faf0] text-[#36e07b]',
+  LOAN_OFFICER_APPROVED: 'bg-sky-50 text-sky-700',
+  LOAN_OFFICER_REJECTED: 'bg-red-50 text-red-600',
+  APPROVED: 'bg-[#e8faf0] text-[#238a4d]',
   REJECTED: 'bg-red-50 text-red-600',
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  PENDING: 'Pending',
+  LOAN_OFFICER_APPROVED: 'Awaiting GM',
+  LOAN_OFFICER_REJECTED: 'Officer Rejected',
+  APPROVED: 'Approved',
+  REJECTED: 'Rejected',
 }
 
 type Filter = 'ALL' | LoanStatus
@@ -133,6 +143,7 @@ export default function LoanApprovalManagement() {
   }, [page, filter])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchLoans()
   }, [fetchLoans])
 
@@ -154,7 +165,7 @@ export default function LoanApprovalManagement() {
 
   const FILTER_TABS: { label: string; value: Filter }[] = [
     { label: 'All', value: 'ALL' },
-    { label: 'Pending', value: 'PENDING' },
+    { label: 'Awaiting GM', value: 'LOAN_OFFICER_APPROVED' },
     { label: 'Approved', value: 'APPROVED' },
     { label: 'Rejected', value: 'REJECTED' },
   ]
@@ -228,7 +239,7 @@ export default function LoanApprovalManagement() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${STATUS_STYLES[loan.status]}`}>
-                      {loan.status}
+                      {STATUS_LABELS[loan.status] ?? loan.status}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm flex gap-3">
@@ -238,7 +249,7 @@ export default function LoanApprovalManagement() {
                     >
                       View
                     </Link>
-                    {loan.status === 'PENDING' && (
+                    {loan.status === 'LOAN_OFFICER_APPROVED' && (
                       <>
                         <button
                           onClick={() => setReviewing({ loan, action: 'approve' })}

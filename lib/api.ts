@@ -1,3 +1,5 @@
+import { buildApiUrl } from './api-url'
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
 const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL ?? API_URL
 
@@ -24,7 +26,7 @@ export async function apiFetch<T>(
   // attach the httpOnly access-token cookie — never readable by browser JS.
   const url = isClient && !accessToken
     ? `/api/proxy${path}`
-    : `${API_URL}${path}`
+    : buildApiUrl(API_URL, path)
 
   const headers = new Headers(fetchOptions.headers)
 

@@ -38,12 +38,15 @@ interface Client {
     authorizedSignatory?: string
     annualRevenue?: string
   }
-  documents: Array<{ id: string; filename: string; label?: string }>
+  documents: Array<{ id: string; filename?: string; originalFileName?: string; label?: string }>
 }
 
 interface Props {
   client: Client
   onClose: () => void
+  canApprove?: boolean
+  onApprove?: (clientId: string) => void
+  approving?: boolean
 }
 
 function Field({ label, value }: { label: string; value?: string | number | boolean | null }) {
@@ -62,8 +65,9 @@ const BUSINESS_TYPE_LABELS: Record<string, string> = {
   LLC: 'LLC',
 }
 
-function DocumentRow({ doc }: { doc: { id: string; filename: string; label?: string } }) {
+function DocumentRow({ doc }: { doc: { id: string; filename?: string; originalFileName?: string; label?: string } }) {
   const [loading, setLoading] = useState(false)
+  const filename = doc.originalFileName ?? doc.filename ?? doc.label ?? 'Document'
 
   const handleView = async () => {
     setLoading(true)
@@ -87,7 +91,7 @@ function DocumentRow({ doc }: { doc: { id: string; filename: string; label?: str
       <div className="flex items-center gap-3 min-w-0">
         <span className="text-gray-400 text-sm shrink-0">📄</span>
         <div className="min-w-0">
-          <p className="text-sm text-gray-900 truncate">{doc.filename}</p>
+          <p className="text-sm text-gray-900 truncate">{filename}</p>
           {doc.label && <p className="text-xs text-gray-400">{doc.label}</p>}
         </div>
       </div>
@@ -102,7 +106,7 @@ function DocumentRow({ doc }: { doc: { id: string; filename: string; label?: str
   )
 }
 
-export default function ClientDetailModal({ client, onClose }: Props) {
+export default function ClientDetailModal({ client, onClose, canApprove = false, onApprove, approving = false }: Props) {
   const name = client.individual?.fullName ?? client.business?.businessName ?? '—'
 
   return (
@@ -225,7 +229,16 @@ export default function ClientDetailModal({ client, onClose }: Props) {
           )}
         </div>
 
-        <div className="mt-6 flex justify-end">
+        <div className="mt-6 flex justify-end gap-3">
+          {canApprove && onApprove && (
+            <button
+              onClick={() => onApprove(client.id)}
+              disabled={approving}
+              className="rounded-lg bg-[#36e07b] px-5 py-2.5 text-sm font-semibold text-gray-900 transition-colors hover:bg-[#1bcb68] disabled:opacity-50"
+            >
+              {approving ? 'Approving…' : 'Approve Profile'}
+            </button>
+          )}
           <button
             onClick={onClose}
             className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 hover:border-gray-300 hover:text-gray-900 transition-colors"

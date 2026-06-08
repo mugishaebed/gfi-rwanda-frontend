@@ -44,7 +44,7 @@ interface Client {
     authorizedSignatory?: string
     annualRevenue?: string
   }
-  documents: Array<{ id: string; filename: string; label?: string }>
+  documents: Array<{ id: string; filename?: string; originalFileName?: string; label?: string }>
 }
 
 interface FormData {
@@ -226,7 +226,7 @@ export default function CreateClientForm({
           if (formData.authorizedSignatoryDesignation) body.authorizedSignatoryDesignation = formData.authorizedSignatoryDesignation
           if (formData.annualRevenue) body.annualRevenue = formData.annualRevenue
         }
-        response = await fetch(`/api/proxy/clients/${path}`, {
+        response = await fetch(`/api/proxy/v1/clients/${path}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
@@ -274,7 +274,7 @@ export default function CreateClientForm({
           fd.append('documentLabels', JSON.stringify(documentLabels.map((label) => label || '')))
         }
 
-        response = await fetch(`/api/proxy/clients/${path}`, {
+        response = await fetch(`/api/proxy/v1/clients/${path}`, {
           method: 'POST',
           body: fd,
         })

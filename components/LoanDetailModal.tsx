@@ -4,8 +4,18 @@ import type { Loan, LoanDocument, RepaymentScheduleItem, RepaymentTermsDetail } 
 
 const STATUS_STYLES: Record<string, string> = {
   PENDING: 'bg-yellow-50 text-yellow-700',
-  APPROVED: 'bg-[#e8faf0] text-[#36e07b]',
+  LOAN_OFFICER_APPROVED: 'bg-sky-50 text-sky-700',
+  LOAN_OFFICER_REJECTED: 'bg-red-50 text-red-600',
+  APPROVED: 'bg-[#e8faf0] text-[#238a4d]',
   REJECTED: 'bg-red-50 text-red-600',
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  PENDING: 'Pending',
+  LOAN_OFFICER_APPROVED: 'Awaiting GM',
+  LOAN_OFFICER_REJECTED: 'Officer Rejected',
+  APPROVED: 'Approved',
+  REJECTED: 'Rejected',
 }
 
 const CONTRACT_LABELS = new Set([
@@ -124,7 +134,7 @@ export default function LoanDetailModal({ loan, onClose }: Props) {
                 STATUS_STYLES[loan.status] ?? 'bg-gray-100 text-gray-500'
               }`}
             >
-              {loan.status}
+              {STATUS_LABELS[loan.status] ?? loan.status}
             </span>
             <button
               type="button"
@@ -277,31 +287,35 @@ export default function LoanDetailModal({ loan, onClose }: Props) {
           {loan.statusLogs.length > 0 && (
             <Section title="Status History">
               <div className="col-span-2 space-y-2 -mt-1">
-                {loan.statusLogs.map((log) => (
-                  <div
-                    key={log.id}
-                    className="flex items-start justify-between rounded-xl bg-gray-50 px-4 py-3"
-                  >
-                    <div>
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${
-                          STATUS_STYLES[log.status] ?? 'bg-gray-100 text-gray-500'
-                        }`}
-                      >
-                        {log.status}
+                {loan.statusLogs.map((log) => {
+                  const status = log.status ?? log.toStatus ?? log.fromStatus ?? 'PENDING'
+
+                  return (
+                    <div
+                      key={log.id}
+                      className="flex items-start justify-between rounded-xl bg-gray-50 px-4 py-3"
+                    >
+                      <div>
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${
+                            STATUS_STYLES[status] ?? 'bg-gray-100 text-gray-500'
+                          }`}
+                        >
+                          {STATUS_LABELS[status] ?? status}
+                        </span>
+                        {log.note && (
+                          <p className="mt-1 text-xs italic text-gray-500">{log.note}</p>
+                        )}
+                        <p className="mt-0.5 text-xs text-gray-400">
+                          by {log.user?.name || 'Unknown user'}
+                        </p>
+                      </div>
+                      <span className="ml-4 whitespace-nowrap text-xs text-gray-400">
+                        {fmtDate(log.createdAt)}
                       </span>
-                      {log.note && (
-                        <p className="mt-1 text-xs italic text-gray-500">{log.note}</p>
-                      )}
-                      <p className="mt-0.5 text-xs text-gray-400">
-                        by {log.user?.name || 'Unknown user'}
-                      </p>
                     </div>
-                    <span className="ml-4 whitespace-nowrap text-xs text-gray-400">
-                      {fmtDate(log.createdAt)}
-                    </span>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </Section>
           )}
