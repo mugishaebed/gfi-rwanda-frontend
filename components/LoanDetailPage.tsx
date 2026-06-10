@@ -107,18 +107,60 @@ interface ReviewPopoverProps {
   loanId: string
   action: 'approve' | 'reject'
   role: 'LOAN_OFFICER' | 'GENERAL_MANAGER'
+  requestedAmount: number
   onClose: () => void
   onDone: () => void
 }
 
-function ReviewPopover({ loanId, action, role, onClose, onDone }: ReviewPopoverProps) {
+function ReviewPopover({ loanId, action, role, requestedAmount, onClose, onDone }: ReviewPopoverProps) {
   const [note, setNote] = useState('')
+  const [disbursedAmount, setDisbursedAmount] = useState<string>('')
+  const [disbursedAt, setDisbursedAt] = useState<string>('')
+  const [amountError, setAmountError] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const isGMApproving = role === 'GENERAL_MANAGER' && action === 'approve'
+  const disbursedAmountNum = disbursedAmount ? parseFloat(disbursedAmount) : null
+
+  const validateAmount = (value: string) => {
+    if (!value) {
+      setAmountError('')
+      return true
+    }
+    const num = parseFloat(value)
+    if (isNaN(num) || num <= 0) {
+      setAmountError('Amount must be greater than 0')
+      return false
+    }
+    if (num > requestedAmount) {
+      setAmountError(`Cannot exceed requested amount of ${fmtMoney(requestedAmount)}`)
+      return false
+    }
+    setAmountError('')
+    return true
+  }
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setDisbursedAmount(value)
+    validateAmount(value)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    if (isGMApproving) {
+      if (!disbursedAmount || !disbursedAt) {
+        setError('Disbursed Amount and Disbursement Date are required')
+        return
+      }
+      if (!validateAmount(disbursedAmount)) {
+        return
+      }
+    }
+
     setLoading(true)
     try {
       if (role === 'LOAN_OFFICER') {
@@ -128,7 +170,7 @@ function ReviewPopover({ loanId, action, role, onClose, onDone }: ReviewPopoverP
           await rejectLoanByOfficer(loanId, note || undefined)
         }
       } else if (action === 'approve') {
-        await approveLoan(loanId, note || undefined)
+        await approveLoan(loanId, note || undefined, disbursedAmountNum || undefined, disbursedAt || undefined)
       } else {
         await rejectLoan(loanId, note || undefined)
       }
@@ -171,6 +213,54 @@ function ReviewPopover({ loanId, action, role, onClose, onDone }: ReviewPopoverP
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {isGMApproving && (
+            <>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Requested Amount
+                </label>
+                <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-900">
+                  {fmtMoney(requestedAmount)}
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="disbursed-amount" className="mb-1 block text-sm font-medium text-gray-700">
+                  Disbursed Amount (RWF) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="disbursed-amount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={requestedAmount}
+                  value={disbursedAmount}
+                  onChange={handleAmountChange}
+                  placeholder="Enter amount to disburse"
+                  className={`block w-full rounded-xl border px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-[#36e07b] ${
+                    amountError ? 'border-red-200' : 'border-gray-200'
+                  }`}
+                />
+                {amountError && (
+                  <p className="mt-1 text-xs text-red-600">{amountError}</p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="disbursed-date" className="mb-1 block text-sm font-medium text-gray-700">
+                  Disbursement Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="disbursed-date"
+                  type="date"
+                  value={disbursedAt}
+                  onChange={(e) => setDisbursedAt(e.target.value)}
+                  className="block w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 outline-none focus:border-[#36e07b]"
+                />
+              </div>
+            </>
+          )}
+
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">
               Note{' '}
@@ -507,6 +597,7 @@ export default function LoanDetailPage({ loanId, role }: Props) {
                     loanId={loan.id}
                     action={reviewing}
                     role={role}
+                    requestedAmount={loan.amount}
                     onClose={() => setReviewing(null)}
                     onDone={() => {
                       setReviewing(null)

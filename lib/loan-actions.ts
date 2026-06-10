@@ -31,8 +31,36 @@ async function reviewAction(path: string, note?: string): Promise<void> {
   }
 }
 
-export async function approveLoan(id: string, note?: string) {
-  return reviewAction(`/loans/${id}/approve`, note)
+interface ApprovalData {
+  note?: string
+  disbursedAmount?: number
+  disbursedAt?: string
+}
+
+async function approvalAction(path: string, data: ApprovalData): Promise<void> {
+  const token = await getToken()
+
+  const response = await fetch(buildApiUrl(API_URL, path), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(text)
+  }
+}
+
+export async function approveLoan(id: string, note?: string, disbursedAmount?: number, disbursedAt?: string) {
+  return approvalAction(`/loans/${id}/approve`, {
+    note,
+    disbursedAmount,
+    disbursedAt,
+  })
 }
 
 export async function rejectLoan(id: string, note?: string) {
