@@ -13,18 +13,22 @@ import type { Loan, LoansResponse, LoanSource, LoanStatus } from '@/lib/types'
 import RecordRepaymentForm from './RecordRepaymentForm'
 
 const STATUS_STYLES: Record<LoanStatus, string> = {
-  PENDING: 'bg-yellow-50 text-yellow-700',
-  LOAN_OFFICER_APPROVED: 'bg-sky-50 text-sky-700',
-  LOAN_OFFICER_REJECTED: 'bg-red-50 text-red-600',
-  APPROVED: 'bg-[#e8faf0] text-[#238a4d]',
+  PENDING_OFFICER_REVIEW: 'bg-yellow-50 text-yellow-700',
+  PENDING_GM_APPROVAL: 'bg-sky-50 text-sky-700',
+  APPROVED: 'bg-amber-50 text-amber-700',
+  DISBURSING: 'bg-purple-50 text-purple-700',
+  DISBURSEMENT_FAILED: 'bg-red-50 text-red-600',
+  ACTIVE: 'bg-[#e8faf0] text-[#238a4d]',
   REJECTED: 'bg-red-50 text-red-600',
 }
 
 const STATUS_LABELS: Record<LoanStatus, string> = {
-  PENDING: 'Pending',
-  LOAN_OFFICER_APPROVED: 'Awaiting GM',
-  LOAN_OFFICER_REJECTED: 'Officer Rejected',
-  APPROVED: 'Approved',
+  PENDING_OFFICER_REVIEW: 'Awaiting officer review',
+  PENDING_GM_APPROVAL: 'Awaiting GM approval',
+  APPROVED: 'Approved — disbursing',
+  DISBURSING: 'Disbursing…',
+  DISBURSEMENT_FAILED: 'Disbursement failed',
+  ACTIVE: 'Active',
   REJECTED: 'Rejected',
 }
 
@@ -68,7 +72,7 @@ const LOAN_OFFICER_FILTERS: LoanFilter[] = [
     key: 'online-pending',
     label: 'Online Requests',
     source: 'CLIENT_ONLINE',
-    status: 'PENDING',
+    status: 'PENDING_OFFICER_REVIEW',
     emptyTitle: 'No pending online requests',
     emptyHint: 'Client-submitted loan requests will appear here.',
   },
@@ -76,23 +80,23 @@ const LOAN_OFFICER_FILTERS: LoanFilter[] = [
     key: 'manual-pending',
     label: 'Manual Requests',
     source: 'STAFF_MANUAL',
-    status: 'PENDING',
+    status: 'PENDING_OFFICER_REVIEW',
     emptyTitle: 'No pending manual requests',
     emptyHint: 'Staff-created applications waiting for review will appear here.',
   },
   {
     key: 'awaiting-gm',
     label: 'Awaiting GM',
-    status: 'LOAN_OFFICER_APPROVED',
+    status: 'PENDING_GM_APPROVAL',
     emptyTitle: 'No loans awaiting GM approval',
     emptyHint: 'Officer-approved loans move here before final approval.',
   },
   {
     key: 'approved',
-    label: 'Approved',
-    status: 'APPROVED',
-    emptyTitle: 'No approved loans',
-    emptyHint: 'Fully approved loans will appear here.',
+    label: 'Active',
+    status: 'ACTIVE',
+    emptyTitle: 'No active loans',
+    emptyHint: 'Disbursed loans in repayment will appear here.',
   },
   {
     key: 'rejected',
@@ -111,6 +115,13 @@ const GENERAL_MANAGER_FILTERS: LoanFilter[] = [
     emptyHint: 'Loan applications will appear here.',
   },
   {
+    key: 'awaiting-gm',
+    label: 'Awaiting Review',
+    status: 'PENDING_GM_APPROVAL',
+    emptyTitle: 'No loans awaiting GM approval',
+    emptyHint: 'Manual loans and officer-approved online loans move here for final approval.',
+  },
+  {
     key: 'manual-all',
     label: 'Manual Pipeline',
     source: 'STAFF_MANUAL',
@@ -126,10 +137,10 @@ const GENERAL_MANAGER_FILTERS: LoanFilter[] = [
   },
   {
     key: 'approved',
-    label: 'Approved',
-    status: 'APPROVED',
-    emptyTitle: 'No approved loans',
-    emptyHint: 'Approved loans will appear here.',
+    label: 'Active',
+    status: 'ACTIVE',
+    emptyTitle: 'No active loans',
+    emptyHint: 'Disbursed loans in repayment will appear here.',
   },
   {
     key: 'rejected',
@@ -164,15 +175,56 @@ function parseActionError(err: unknown) {
 
 function ReviewModal({ loan, action, role, onClose, onDone }: ReviewModalProps) {
   const [note, setNote] = useState('')
+  const [disbursedAmount, setDisbursedAmount] = useState<string>('')
+  const [disbursedAt, setDisbursedAt] = useState<string>('')
+  const [amountError, setAmountError] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const isApprove = action === 'approve'
+  const isGMApproving = role === 'GENERAL_MANAGER' && action === 'approve'
+  const isManualLoan = loan.source === 'STAFF_MANUAL'
   const reviewerLabel = role === 'LOAN_OFFICER' ? 'Loan Officer Review' : 'GM Review'
+  const disbursedAmountNum = disbursedAmount ? parseFloat(disbursedAmount) : null
+
+  const validateAmount = (value: string) => {
+    if (!value) {
+      setAmountError('')
+      return true
+    }
+    const num = parseFloat(value)
+    if (isNaN(num) || num <= 0) {
+      setAmountError('Amount must be greater than 0')
+      return false
+    }
+    if (num > loan.amount) {
+      setAmountError(`Cannot exceed requested amount of ${fmtMoney(loan.amount)}`)
+      return false
+    }
+    setAmountError('')
+    return true
+  }
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setDisbursedAmount(value)
+    validateAmount(value)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    if (isGMApproving && isManualLoan) {
+      if (!disbursedAmount || !disbursedAt) {
+        setError('Disbursed Amount and Disbursement Date are required for manual loans')
+        return
+      }
+      if (!validateAmount(disbursedAmount)) {
+        return
+      }
+    }
+
     setLoading(true)
 
     try {
@@ -183,7 +235,7 @@ function ReviewModal({ loan, action, role, onClose, onDone }: ReviewModalProps) 
           await rejectLoanByOfficer(loan.id, note || undefined)
         }
       } else if (isApprove) {
-        await approveLoan(loan.id, note || undefined)
+        await approveLoan(loan.id, note || undefined, disbursedAmountNum || undefined, disbursedAt || undefined)
       } else {
         await rejectLoan(loan.id, note || undefined)
       }
@@ -194,6 +246,9 @@ function ReviewModal({ loan, action, role, onClose, onDone }: ReviewModalProps) 
       setLoading(false)
     }
   }
+
+  const fmtMoney = (n: number) =>
+    `${n.toLocaleString('en-RW', { maximumFractionDigits: 2 })} Rwf`
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
@@ -221,6 +276,54 @@ function ReviewModal({ loan, action, role, onClose, onDone }: ReviewModalProps) 
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {isGMApproving && isManualLoan && (
+            <>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Requested Amount
+                </label>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-900">
+                  {fmtMoney(loan.amount)}
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="disbursed-amount" className="mb-1 block text-sm font-medium text-gray-700">
+                  Disbursed Amount (RWF) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="disbursed-amount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={loan.amount}
+                  value={disbursedAmount}
+                  onChange={handleAmountChange}
+                  placeholder="Enter amount to disburse"
+                  className={`block w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-[#36e07b] ${
+                    amountError ? 'border-red-200' : 'border-gray-200'
+                  }`}
+                />
+                {amountError && (
+                  <p className="mt-1 text-xs text-red-600">{amountError}</p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="disbursed-date" className="mb-1 block text-sm font-medium text-gray-700">
+                  Disbursement Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="disbursed-date"
+                  type="date"
+                  value={disbursedAt}
+                  onChange={(e) => setDisbursedAt(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#36e07b]"
+                />
+              </div>
+            </>
+          )}
+
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">
               Note <span className="text-xs font-normal text-gray-400">(optional)</span>
@@ -338,8 +441,8 @@ export default function LoanManagement({ role = 'LOAN_OFFICER', initialFilter }:
 
   const canReview = (loan: Loan) =>
     role === 'LOAN_OFFICER'
-      ? loan.status === 'PENDING'
-      : loan.status === 'LOAN_OFFICER_APPROVED'
+      ? loan.status === 'PENDING_OFFICER_REVIEW'
+      : loan.status === 'PENDING_GM_APPROVAL'
 
   const getSource = (loan: Loan): LoanSource => loan.source ?? 'STAFF_MANUAL'
 
@@ -504,7 +607,7 @@ export default function LoanManagement({ role = 'LOAN_OFFICER', initialFilter }:
                             </button>
                           </>
                         )}
-                        {loan.status === 'APPROVED' && role === 'LOAN_OFFICER' && (
+                        {loan.status === 'ACTIVE' && role === 'LOAN_OFFICER' && (
                           <button
                             type="button"
                             onClick={() => setRecordingRepayment(loan)}

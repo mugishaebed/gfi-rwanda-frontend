@@ -17,10 +17,22 @@ interface ClientsResponse {
   meta: { page: number; limit: number; total: number; totalPages: number }
 }
 
+const LOAN_SECTORS = [
+  { value: 'COFFEE', label: 'Coffee' },
+  { value: 'GENERAL_TRADE', label: 'General Trade' },
+  { value: 'CONSTRUCTION', label: 'Construction' },
+  { value: 'REAL_ESTATE', label: 'Real Estate' },
+  { value: 'TENDERS', label: 'Tenders' },
+  { value: 'HOSPITALITY', label: 'Hospitality' },
+] as const
+
+const VALID_SECTORS = LOAN_SECTORS.map((sector) => sector.value)
+
 interface LoanFormData {
   clientId: string
   amount: string
   purpose: string
+  sector: string
   interestRatePercentPerMonth: string
   termInMonths: string
   termStartDate: string
@@ -63,6 +75,7 @@ const INITIAL_FORM_DATA: LoanFormData = {
   clientId: '',
   amount: '',
   purpose: '',
+  sector: '',
   interestRatePercentPerMonth: '',
   termInMonths: '',
   termStartDate: '',
@@ -209,10 +222,15 @@ export default function CreateLoanForm({ onClose, onSuccess, mode = 'modal' }: P
         throw new Error('Add at least one repayment schedule item.')
       }
 
+      if (!formData.sector || !VALID_SECTORS.includes(formData.sector as (typeof VALID_SECTORS)[number])) {
+        throw new Error('Please select a sector.')
+      }
+
       const fd = new FormData()
       fd.append('clientId', formData.clientId)
       fd.append('amount', formData.amount)
       fd.append('purpose', formData.purpose.trim())
+      fd.append('sector', formData.sector)
       fd.append('interestRatePercentPerMonth', formData.interestRatePercentPerMonth)
       fd.append('termInMonths', formData.termInMonths)
       fd.append('termStartDate', formData.termStartDate)
@@ -343,21 +361,25 @@ export default function CreateLoanForm({ onClose, onSuccess, mode = 'modal' }: P
               className={INPUT_CLASS}
             />
           </Field>
-        </div>
-
-        <div className="grid gap-5 md:grid-cols-2">
-          <Field label="Disbursement within (days) *">
-            <input
-              type="number"
+          <Field label="Sector *">
+            <select
               required
-              min="1"
-              value={formData.disbursementWithinDays}
-              onChange={(event) => handleInputChange('disbursementWithinDays', event.target.value)}
-              placeholder="e.g. 1"
+              value={formData.sector}
+              onChange={(event) => handleInputChange('sector', event.target.value)}
               className={INPUT_CLASS}
-            />
+            >
+              <option value="" disabled>
+                Select a sector…
+              </option>
+              {LOAN_SECTORS.map((sector) => (
+                <option key={sector.value} value={sector.value}>
+                  {sector.label}
+                </option>
+              ))}
+            </select>
           </Field>
         </div>
+
       </Section>
 
       <Section

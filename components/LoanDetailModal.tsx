@@ -3,18 +3,22 @@
 import type { Loan, LoanDocument, RepaymentScheduleItem, RepaymentTermsDetail } from '@/lib/types'
 
 const STATUS_STYLES: Record<string, string> = {
-  PENDING: 'bg-yellow-50 text-yellow-700',
-  LOAN_OFFICER_APPROVED: 'bg-sky-50 text-sky-700',
-  LOAN_OFFICER_REJECTED: 'bg-red-50 text-red-600',
-  APPROVED: 'bg-[#e8faf0] text-[#238a4d]',
+  PENDING_OFFICER_REVIEW: 'bg-yellow-50 text-yellow-700',
+  PENDING_GM_APPROVAL: 'bg-sky-50 text-sky-700',
+  APPROVED: 'bg-amber-50 text-amber-700',
+  DISBURSING: 'bg-purple-50 text-purple-700',
+  DISBURSEMENT_FAILED: 'bg-red-50 text-red-600',
+  ACTIVE: 'bg-[#e8faf0] text-[#238a4d]',
   REJECTED: 'bg-red-50 text-red-600',
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  PENDING: 'Pending',
-  LOAN_OFFICER_APPROVED: 'Awaiting GM',
-  LOAN_OFFICER_REJECTED: 'Officer Rejected',
-  APPROVED: 'Approved',
+  PENDING_OFFICER_REVIEW: 'Awaiting officer review',
+  PENDING_GM_APPROVAL: 'Awaiting GM approval',
+  APPROVED: 'Approved — disbursing',
+  DISBURSING: 'Disbursing…',
+  DISBURSEMENT_FAILED: 'Disbursement failed',
+  ACTIVE: 'Active',
   REJECTED: 'Rejected',
 }
 

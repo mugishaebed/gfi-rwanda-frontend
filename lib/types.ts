@@ -1,10 +1,19 @@
 export type LoanStatus =
-  | 'PENDING'
-  | 'LOAN_OFFICER_APPROVED'
-  | 'LOAN_OFFICER_REJECTED'
+  | 'PENDING_OFFICER_REVIEW'
+  | 'PENDING_GM_APPROVAL'
   | 'APPROVED'
+  | 'DISBURSING'
+  | 'DISBURSEMENT_FAILED'
+  | 'ACTIVE'
   | 'REJECTED'
 export type LoanSource = 'CLIENT_ONLINE' | 'STAFF_MANUAL'
+export type LoanSector =
+  | 'COFFEE'
+  | 'GENERAL_TRADE'
+  | 'CONSTRUCTION'
+  | 'REAL_ESTATE'
+  | 'TENDERS'
+  | 'HOSPITALITY'
 export type RepaymentStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 export type RepaymentSource = 'STAFF_MANUAL' | 'CLIENT_ONLINE'
 export type PaymentProvider = 'MOBILE_MONEY'
@@ -142,5 +151,38 @@ export interface Repayment {
 
 export interface RepaymentsResponse {
   data: Repayment[]
+  meta: { page: number; limit: number; total: number; totalPages: number }
+}
+
+export interface ManualLedgerRow {
+  no: string
+  loanNumber: string
+  customerName: string
+  sector: LoanSector | null
+  loanApproved: number
+  disbursedAmount: number | null
+  outstanding: number
+  disbursementDate: string | null
+  periodMonths: number
+  interestRate: number
+  totalInterestToBeEarned: number | null
+  interestReceived: number
+  principalRecovered: number
+  loanId: string
+  status: LoanStatus
+}
+
+export interface ManualLedgerTotals {
+  loanApproved: number
+  disbursedAmount: number
+  outstanding: number
+  totalInterestToBeEarned: number
+  interestReceived: number
+  principalRecovered: number
+}
+
+export interface ManualLedgerResponse {
+  data: ManualLedgerRow[]
+  totals: ManualLedgerTotals
   meta: { page: number; limit: number; total: number; totalPages: number }
 }

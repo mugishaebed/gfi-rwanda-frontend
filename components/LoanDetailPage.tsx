@@ -20,18 +20,22 @@ const CONTRACT_LABELS = new Set([
 ])
 
 const STATUS_BADGE: Record<string, string> = {
-  PENDING: 'bg-yellow-50 text-yellow-700',
-  LOAN_OFFICER_APPROVED: 'bg-sky-50 text-sky-700',
-  LOAN_OFFICER_REJECTED: 'bg-red-50 text-red-600',
-  APPROVED: 'bg-[#e8faf0] text-[#238a4d]',
+  PENDING_OFFICER_REVIEW: 'bg-yellow-50 text-yellow-700',
+  PENDING_GM_APPROVAL: 'bg-sky-50 text-sky-700',
+  APPROVED: 'bg-amber-50 text-amber-700',
+  DISBURSING: 'bg-purple-50 text-purple-700',
+  DISBURSEMENT_FAILED: 'bg-red-50 text-red-600',
+  ACTIVE: 'bg-[#e8faf0] text-[#238a4d]',
   REJECTED: 'bg-red-50 text-red-600',
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  PENDING: 'Pending',
-  LOAN_OFFICER_APPROVED: 'Awaiting GM',
-  LOAN_OFFICER_REJECTED: 'Officer Rejected',
-  APPROVED: 'Approved',
+  PENDING_OFFICER_REVIEW: 'Awaiting officer review',
+  PENDING_GM_APPROVAL: 'Awaiting GM approval',
+  APPROVED: 'Approved — disbursing',
+  DISBURSING: 'Disbursing…',
+  DISBURSEMENT_FAILED: 'Disbursement failed',
+  ACTIVE: 'Active',
   REJECTED: 'Rejected',
 }
 
@@ -108,11 +112,12 @@ interface ReviewPopoverProps {
   action: 'approve' | 'reject'
   role: 'LOAN_OFFICER' | 'GENERAL_MANAGER'
   requestedAmount: number
+  loanSource?: LoanSource
   onClose: () => void
   onDone: () => void
 }
 
-function ReviewPopover({ loanId, action, role, requestedAmount, onClose, onDone }: ReviewPopoverProps) {
+function ReviewPopover({ loanId, action, role, requestedAmount, loanSource, onClose, onDone }: ReviewPopoverProps) {
   const [note, setNote] = useState('')
   const [disbursedAmount, setDisbursedAmount] = useState<string>('')
   const [disbursedAt, setDisbursedAt] = useState<string>('')
@@ -121,6 +126,7 @@ function ReviewPopover({ loanId, action, role, requestedAmount, onClose, onDone 
   const [error, setError] = useState('')
 
   const isGMApproving = role === 'GENERAL_MANAGER' && action === 'approve'
+  const isManualLoan = loanSource === 'STAFF_MANUAL'
   const disbursedAmountNum = disbursedAmount ? parseFloat(disbursedAmount) : null
 
   const validateAmount = (value: string) => {
@@ -151,9 +157,9 @@ function ReviewPopover({ loanId, action, role, requestedAmount, onClose, onDone 
     e.preventDefault()
     setError('')
 
-    if (isGMApproving) {
+    if (isGMApproving && isManualLoan) {
       if (!disbursedAmount || !disbursedAt) {
-        setError('Disbursed Amount and Disbursement Date are required')
+        setError('Disbursed Amount and Disbursement Date are required for manual loans')
         return
       }
       if (!validateAmount(disbursedAmount)) {
@@ -213,7 +219,7 @@ function ReviewPopover({ loanId, action, role, requestedAmount, onClose, onDone 
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {isGMApproving && (
+          {isGMApproving && isManualLoan && (
             <>
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">
@@ -487,8 +493,8 @@ export default function LoanDetailPage({ loanId, role }: Props) {
       : loan.user?.email || '-'
   const canReview =
     role === 'LOAN_OFFICER'
-      ? loan.status === 'PENDING'
-      : loan.status === 'LOAN_OFFICER_APPROVED'
+      ? loan.status === 'PENDING_OFFICER_REVIEW'
+      : loan.status === 'PENDING_GM_APPROVAL'
   const totalRepayment =
     loan.repaymentAmountPerMonth ?? terms?.amountPerInstallment ?? loan.outstandingBalance
   const interestAmount =
@@ -598,6 +604,7 @@ export default function LoanDetailPage({ loanId, role }: Props) {
                     action={reviewing}
                     role={role}
                     requestedAmount={loan.amount}
+                    loanSource={source}
                     onClose={() => setReviewing(null)}
                     onDone={() => {
                       setReviewing(null)
@@ -608,7 +615,7 @@ export default function LoanDetailPage({ loanId, role }: Props) {
               </>
             )}
 
-            {role === 'LOAN_OFFICER' && loan.status === 'APPROVED' && (
+            {role === 'LOAN_OFFICER' && loan.status === 'ACTIVE' && (
               <button
                 onClick={() => setRecordingRepayment(true)}
                 className="rounded-xl bg-[#36e07b] px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:bg-[#1bcb68]"

@@ -7,18 +7,22 @@ import { approveLoan, rejectLoan } from '@/lib/loan-actions'
 import type { Loan, LoansResponse, LoanStatus } from '@/lib/types'
 
 const STATUS_STYLES: Record<string, string> = {
-  PENDING: 'bg-yellow-50 text-yellow-700',
-  LOAN_OFFICER_APPROVED: 'bg-sky-50 text-sky-700',
-  LOAN_OFFICER_REJECTED: 'bg-red-50 text-red-600',
-  APPROVED: 'bg-[#e8faf0] text-[#238a4d]',
+  PENDING_OFFICER_REVIEW: 'bg-yellow-50 text-yellow-700',
+  PENDING_GM_APPROVAL: 'bg-sky-50 text-sky-700',
+  APPROVED: 'bg-amber-50 text-amber-700',
+  DISBURSING: 'bg-purple-50 text-purple-700',
+  DISBURSEMENT_FAILED: 'bg-red-50 text-red-600',
+  ACTIVE: 'bg-[#e8faf0] text-[#238a4d]',
   REJECTED: 'bg-red-50 text-red-600',
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  PENDING: 'Pending',
-  LOAN_OFFICER_APPROVED: 'Awaiting GM',
-  LOAN_OFFICER_REJECTED: 'Officer Rejected',
-  APPROVED: 'Approved',
+  PENDING_OFFICER_REVIEW: 'Awaiting officer review',
+  PENDING_GM_APPROVAL: 'Awaiting GM approval',
+  APPROVED: 'Approved — disbursing',
+  DISBURSING: 'Disbursing…',
+  DISBURSEMENT_FAILED: 'Disbursement failed',
+  ACTIVE: 'Active',
   REJECTED: 'Rejected',
 }
 
@@ -165,8 +169,8 @@ export default function LoanApprovalManagement() {
 
   const FILTER_TABS: { label: string; value: Filter }[] = [
     { label: 'All', value: 'ALL' },
-    { label: 'Awaiting GM', value: 'LOAN_OFFICER_APPROVED' },
-    { label: 'Approved', value: 'APPROVED' },
+    { label: 'Awaiting GM', value: 'PENDING_GM_APPROVAL' },
+    { label: 'Active', value: 'ACTIVE' },
     { label: 'Rejected', value: 'REJECTED' },
   ]
 
@@ -249,7 +253,7 @@ export default function LoanApprovalManagement() {
                     >
                       View
                     </Link>
-                    {loan.status === 'LOAN_OFFICER_APPROVED' && (
+                    {loan.status === 'PENDING_GM_APPROVAL' && (
                       <>
                         <button
                           onClick={() => setReviewing({ loan, action: 'approve' })}
