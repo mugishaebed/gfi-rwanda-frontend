@@ -70,34 +70,12 @@ export default function OfficerDashboard({
   return (
     <div className="space-y-6 animate-fade-up">
       {/* Header */}
-      <div className="dashboard-panel flex flex-col gap-4 px-6 py-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-        <div>
-          <p className="dashboard-kicker mb-2">Overview</p>
-          <h2 className="dashboard-title">Your Workspace, {firstName}</h2>
-          <p className="dashboard-subtitle mt-3 max-w-2xl">
-            What needs you today — reviews, collections, and your client pipeline at a glance.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`${LOANS_BASE}/new`}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#36e07b] px-4 py-2.5 text-sm font-semibold text-gray-900 transition-colors hover:bg-[#1bcb68]"
-          >
-            + New Application
-          </Link>
-          <Link
-            href="/dashboard/loan-officer/clients/new"
-            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:border-[#36e07b] hover:text-gray-900"
-          >
-            + Add Client
-          </Link>
-          <Link
-            href="/dashboard/loan-officer/repayments"
-            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:border-[#36e07b] hover:text-gray-900"
-          >
-            Record Repayment
-          </Link>
-        </div>
+      <div className="dashboard-panel px-6 py-6 lg:px-8">
+        <p className="dashboard-kicker mb-2">Overview</p>
+        <h2 className="dashboard-title">Your Workspace, {firstName}</h2>
+        <p className="dashboard-subtitle mt-3 max-w-2xl">
+          What needs you today — reviews, collections, and your client pipeline at a glance.
+        </p>
       </div>
 
       {/* Hero KPIs */}

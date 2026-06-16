@@ -88,6 +88,7 @@ export default function ClientManagement({
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [viewingClient, setViewingClient] = useState<Client | null>(null)
   const [approvingClientId, setApprovingClientId] = useState<string | null>(null)
@@ -96,7 +97,8 @@ export default function ClientManagement({
 
   const sourceParam =
     source === 'manual' ? '&source=MANUAL' : source === 'online' ? '&source=ONLINE' : ''
-  const endpoint = `/clients?page=${page}&limit=10${sourceParam}`
+  const searchParam = debouncedSearch ? `&search=${encodeURIComponent(debouncedSearch)}` : ''
+  const endpoint = `/clients?page=${page}&limit=10${sourceParam}${searchParam}`
   const totalLabel =
     source === 'manual' ? 'manual client' : source === 'online' ? 'online client' : 'client'
 
@@ -156,6 +158,18 @@ export default function ClientManagement({
       cancelled = true
     }
   }, [applyClientsResponse, endpoint])
+
+  // Debounce the search box so we query the backend (across all pages) rather
+  // than only filtering the current page.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  // A new query should always start from the first page of results.
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch])
 
   const handleApproveProfile = async (clientId: string) => {
     if (!window.confirm('Approve this client profile?')) return
