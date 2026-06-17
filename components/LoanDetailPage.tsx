@@ -526,7 +526,7 @@ export default function LoanDetailPage({ loanId, role }: Props) {
       ? { label: 'Disbursement Date', value: fmtDate(loan.disbursedAt) }
       : null,
     loan.outstandingBalance !== undefined
-      ? { label: 'Outstanding Balance', value: fmtMoney(loan.outstandingBalance) }
+      ? { label: 'Outstanding Principal', value: fmtMoney(loan.outstandingBalance) }
       : null,
     hasVal(loan.termInMonths) ? { label: 'Term', value: `${loan.termInMonths} months` } : null,
     hasVal(loan.interestRatePercentPerMonth)
@@ -680,7 +680,7 @@ export default function LoanDetailPage({ loanId, role }: Props) {
                   )}
                   {loan.outstandingBalance !== undefined && (
                     <DetailField
-                      label="Outstanding Balance"
+                      label="Outstanding Principal"
                       value={fmtMoney(loan.outstandingBalance)}
                     />
                   )}
@@ -772,7 +772,7 @@ export default function LoanDetailPage({ loanId, role }: Props) {
                 value={loan.disbursedAt ? fmtDate(loan.disbursedAt) : '—'}
               />
               {loan.outstandingBalance !== undefined && (
-                <DetailField label="Outstanding Balance" value={fmtMoney(loan.outstandingBalance)} />
+                <DetailField label="Outstanding Principal" value={fmtMoney(loan.outstandingBalance)} />
               )}
               {loan.totalRepaidAmount !== undefined && (
                 <DetailField label="Total Repaid" value={fmtMoney(loan.totalRepaidAmount)} />

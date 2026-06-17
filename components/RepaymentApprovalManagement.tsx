@@ -13,6 +13,22 @@ const STATUS_STYLES: Record<RepaymentStatus, string> = {
 
 type Filter = 'ALL' | RepaymentStatus
 
+// outstandingBalance is principal-only, so only the principal portion of a
+// repayment reduces it (interest does not). Falls back to amountPaid for
+// legacy repayments without a recorded split.
+function principalApplied(repayment: Repayment) {
+  return repayment.principalPaid ?? repayment.amountPaid
+}
+
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4 border-b border-gray-50 px-4 py-3 last:border-b-0">
+      <span className="text-sm text-gray-500">{label}</span>
+      <span className="text-right text-sm font-medium text-gray-900">{value}</span>
+    </div>
+  )
+}
+
 interface ReviewModalProps {
   repayment: Repayment
   action: 'approve' | 'reject'
@@ -67,6 +83,30 @@ function ReviewModal({ repayment, action, onClose, onDone }: ReviewModalProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {action === 'approve' && (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">
+                Amount Being Approved
+              </p>
+              <p className="text-2xl font-bold text-gray-900">{fmtMoney(repayment.amountPaid)}</p>
+              {(repayment.principalPaid != null || repayment.interestPaid != null) && (
+                <div className="grid grid-cols-2 gap-3 pt-1 text-xs">
+                  <div>
+                    <p className="text-gray-500">Principal</p>
+                    <p className="font-semibold text-gray-900">
+                      {repayment.principalPaid != null ? fmtMoney(repayment.principalPaid) : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Interest</p>
+                    <p className="font-semibold text-gray-900">
+                      {repayment.interestPaid != null ? fmtMoney(repayment.interestPaid) : '—'}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           {action === 'approve' && repayment.loan.outstandingBalance !== undefined && (
             <div className="rounded-lg bg-green-50 border border-green-200 p-4 space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.1em] text-green-700">Balance Impact</p>
@@ -76,14 +116,14 @@ function ReviewModal({ repayment, action, onClose, onDone }: ReviewModalProps) {
                   <p className="font-semibold text-gray-900">{fmtMoney(repayment.loan.outstandingBalance)}</p>
                 </div>
                 <div>
-                  <p className="text-gray-600">Repayment Amount</p>
-                  <p className="font-semibold text-gray-900">- {fmtMoney(repayment.amountPaid)}</p>
+                  <p className="text-gray-600">Principal Applied</p>
+                  <p className="font-semibold text-gray-900">- {fmtMoney(principalApplied(repayment))}</p>
                 </div>
               </div>
               <div className="border-t border-green-200 pt-2">
                 <p className="text-gray-600">New Balance After Approval</p>
                 <p className="text-lg font-bold text-green-700">
-                  {fmtMoney(Math.max(0, repayment.loan.outstandingBalance - repayment.amountPaid))}
+                  {fmtMoney(Math.max(0, repayment.loan.outstandingBalance - principalApplied(repayment)))}
                 </p>
               </div>
             </div>
@@ -148,100 +188,108 @@ function RepaymentDetailModal({ repayment, onClose }: { repayment: Repayment; on
   const fmtMoney = (n: number) =>
     n.toLocaleString('en-RW', { style: 'currency', currency: 'RWF' })
 
+  const splitKnown = repayment.principalPaid != null || repayment.interestPaid != null
+
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-xl">
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#36e07b] mb-1">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-7 pb-5 pt-7">
+          <div className="min-w-0">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#36e07b]">
               Repayment Details
             </p>
-            <h3 className="text-xl font-bold text-gray-900">{clientName}</h3>
+            <h3 className="truncate text-xl font-bold text-gray-900">{clientName}</h3>
+            {repayment.loan.loanNumber && (
+              <p className="mt-0.5 font-mono text-xs text-gray-400">{repayment.loan.loanNumber}</p>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${STATUS_STYLES[repayment.status]}`}>
               {repayment.status}
             </span>
-            <button onClick={onClose} className="text-gray-300 hover:text-gray-600 transition-colors text-lg leading-none">
+            <button
+              onClick={onClose}
+              className="text-lg leading-none text-gray-300 transition-colors hover:text-gray-600"
+            >
               ✕
             </button>
           </div>
         </div>
 
-        <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-            <div>
-              <p className="text-xs text-gray-400">Amount Paid</p>
-              <p className="text-sm font-medium text-gray-900">{fmtMoney(repayment.amountPaid)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400">Payment Date</p>
-              <p className="text-sm font-medium text-gray-900">{fmt(repayment.paymentDate)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400">Principal Paid</p>
-              <p className="text-sm font-medium text-gray-900">
-                {repayment.principalPaid != null ? fmtMoney(repayment.principalPaid) : '—'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400">Interest Paid</p>
-              <p className="text-sm font-medium text-gray-900">
-                {repayment.interestPaid != null ? fmtMoney(repayment.interestPaid) : '—'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400">Loan</p>
-              <p className="text-sm font-medium text-gray-900">{repayment.loan.purpose}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400">Original Loan Amount</p>
-              <p className="text-sm font-medium text-gray-900">{fmtMoney(repayment.loan.amount)}</p>
-            </div>
-            {repayment.loan.outstandingBalance !== undefined && (
-              <div>
-                <p className="text-xs text-gray-400">Outstanding Balance</p>
-                <p className="text-sm font-medium text-gray-900">{fmtMoney(repayment.loan.outstandingBalance)}</p>
-              </div>
-            )}
-            {repayment.loan.totalRepaidAmount !== undefined && (
-              <div>
-                <p className="text-xs text-gray-400">Total Repaid</p>
-                <p className="text-sm font-medium text-gray-900">{fmtMoney(repayment.loan.totalRepaidAmount)}</p>
-              </div>
-            )}
-            {repayment.loan.outstandingBalance !== undefined && repayment.status === 'PENDING' && (
-              <div className="col-span-2 rounded-lg bg-blue-50 border border-blue-200 p-3">
-                <p className="text-xs text-gray-400 mb-1">Projected Balance After Approval</p>
-                <p className="text-sm font-semibold text-blue-700">
-                  {fmtMoney(Math.max(0, repayment.loan.outstandingBalance - repayment.amountPaid))}
+        {/* Body */}
+        <div className="space-y-6 overflow-y-auto px-7 py-6">
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* Left column: amount + split + projected impact */}
+            <div className="space-y-6">
+              {/* Amount hero + split */}
+              <div className="rounded-2xl border border-[#cdeedd] bg-gradient-to-br from-[#e8faf0] to-white p-5">
+                <p className="text-xs font-medium uppercase tracking-[0.15em] text-[#7ca089]">Amount Paid</p>
+                <p className="mt-1 text-3xl font-bold tracking-tight text-[#1f1724]">
+                  {fmtMoney(repayment.amountPaid)}
                 </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {fmtMoney(repayment.loan.outstandingBalance)} - {fmtMoney(repayment.amountPaid)} = {fmtMoney(Math.max(0, repayment.loan.outstandingBalance - repayment.amountPaid))}
-                </p>
+                <p className="mt-1 text-xs text-gray-500">Paid on {fmt(repayment.paymentDate)}</p>
+
+                {splitKnown && (
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-gray-100 bg-white/70 px-4 py-3">
+                      <p className="text-xs text-gray-400">Principal</p>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {repayment.principalPaid != null ? fmtMoney(repayment.principalPaid) : '—'}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-gray-100 bg-white/70 px-4 py-3">
+                      <p className="text-xs text-gray-400">Interest</p>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {repayment.interestPaid != null ? fmtMoney(repayment.interestPaid) : '—'}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-            <div>
-              <p className="text-xs text-gray-400">Submitted by</p>
-              <p className="text-sm font-medium text-gray-900">
-                {repayment.user?.name || 'Unknown user'}
-              </p>
+
+              {/* Projected impact (pending only) */}
+              {repayment.loan.outstandingBalance !== undefined && repayment.status === 'PENDING' && (
+                <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                  <p className="mb-1 text-xs font-medium uppercase tracking-[0.15em] text-blue-700">
+                    Projected Principal After Approval
+                  </p>
+                  <p className="text-lg font-bold text-blue-700">
+                    {fmtMoney(Math.max(0, repayment.loan.outstandingBalance - principalApplied(repayment)))}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {fmtMoney(repayment.loan.outstandingBalance)} − {fmtMoney(principalApplied(repayment))}
+                  </p>
+                </div>
+              )}
             </div>
-            <div>
-              <p className="text-xs text-gray-400">Submitted on</p>
-              <p className="text-sm font-medium text-gray-900">{fmt(repayment.createdAt)}</p>
-            </div>
-            {repayment.notes && (
-              <div className="col-span-2">
-                <p className="text-xs text-gray-400">Notes</p>
-                <p className="text-sm font-medium text-gray-900">{repayment.notes}</p>
+
+            {/* Right column: loan info + notes */}
+            <div className="space-y-6">
+              <div className="overflow-hidden rounded-2xl border border-gray-100">
+                <DetailRow label="Loan purpose" value={repayment.loan.purpose} />
+                <DetailRow label="Original amount" value={fmtMoney(repayment.loan.amount)} />
+                {repayment.loan.outstandingBalance !== undefined && (
+                  <DetailRow label="Outstanding principal" value={fmtMoney(repayment.loan.outstandingBalance)} />
+                )}
+                {repayment.loan.totalRepaidAmount !== undefined && (
+                  <DetailRow label="Total repaid" value={fmtMoney(repayment.loan.totalRepaidAmount)} />
+                )}
+                <DetailRow label="Submitted on" value={fmt(repayment.createdAt)} />
               </div>
-            )}
+
+              {repayment.notes && (
+                <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">Notes</p>
+                  <p className="text-sm text-gray-700">{repayment.notes}</p>
+                </div>
+              )}
+            </div>
           </div>
 
           {statusLogs.length > 0 && (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-gray-400 mb-3">Status History</p>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">Status History</p>
               <div className="space-y-2">
                 {statusLogs.map((log) => (
                   <div key={log.id} className="flex items-start justify-between rounded-xl bg-gray-50 px-4 py-3">
@@ -249,12 +297,9 @@ function RepaymentDetailModal({ repayment, onClose }: { repayment: Repayment; on
                       <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${STATUS_STYLES[log.status as RepaymentStatus] ?? 'bg-gray-100 text-gray-500'}`}>
                         {log.status}
                       </span>
-                      {log.note && <p className="mt-1 text-xs text-gray-500 italic">{log.note}</p>}
-                      <p className="mt-0.5 text-xs text-gray-400">
-                        by {log.user?.name || 'Unknown user'}
-                      </p>
+                      {log.note && <p className="mt-1 text-xs italic text-gray-500">{log.note}</p>}
                     </div>
-                    <span className="text-xs text-gray-400 whitespace-nowrap ml-4">
+                    <span className="ml-4 whitespace-nowrap text-xs text-gray-400">
                       {fmt(log.createdAt)}
                     </span>
                   </div>
@@ -265,7 +310,7 @@ function RepaymentDetailModal({ repayment, onClose }: { repayment: Repayment; on
 
           {documents.length > 0 && (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-gray-400 mb-3">Documents</p>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">Documents</p>
               <div className="flex flex-wrap gap-2">
                 {documents.map((doc) => (
                   <a
@@ -273,7 +318,7 @@ function RepaymentDetailModal({ repayment, onClose }: { repayment: Repayment; on
                     href={`${API_URL}/documents/${doc.id}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-[#36e07b] hover:text-gray-900 transition-colors"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-[#36e07b] hover:text-gray-900"
                   >
                     {doc.label || doc.filename}
                   </a>
@@ -283,10 +328,11 @@ function RepaymentDetailModal({ repayment, onClose }: { repayment: Repayment; on
           )}
         </div>
 
-        <div className="mt-8 flex justify-end">
+        {/* Footer */}
+        <div className="flex justify-end border-t border-gray-100 px-7 py-4">
           <button
             onClick={onClose}
-            className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 hover:border-gray-300 hover:text-gray-900 transition-colors"
+            className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:border-gray-300 hover:text-gray-900"
           >
             Close
           </button>
@@ -301,7 +347,7 @@ export default function RepaymentApprovalManagement() {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  const [filter, setFilter] = useState<Filter>('PENDING')
+  const [filter, setFilter] = useState<Filter>('ALL')
   const [viewingRepayment, setViewingRepayment] = useState<Repayment | null>(null)
   const [reviewing, setReviewing] = useState<{ repayment: Repayment; action: 'approve' | 'reject' } | null>(null)
 
@@ -340,10 +386,10 @@ export default function RepaymentApprovalManagement() {
     n.toLocaleString('en-RW', { style: 'currency', currency: 'RWF' })
 
   const FILTER_TABS: { label: string; value: Filter }[] = [
+    { label: 'All', value: 'ALL' },
     { label: 'Pending', value: 'PENDING' },
     { label: 'Approved', value: 'APPROVED' },
     { label: 'Rejected', value: 'REJECTED' },
-    { label: 'All', value: 'ALL' },
   ]
 
   return (
@@ -396,7 +442,6 @@ export default function RepaymentApprovalManagement() {
                 <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">Amount Paid</th>
                 <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">Payment Date</th>
                 <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">Loan Purpose</th>
-                <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">Officer</th>
                 <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">Status</th>
                 <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">Actions</th>
               </tr>
@@ -415,9 +460,6 @@ export default function RepaymentApprovalManagement() {
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500 max-w-[140px] truncate">
                     {r.loan.purpose}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {r.user?.name || 'Unknown user'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide ${STATUS_STYLES[r.status]}`}>

@@ -49,6 +49,7 @@ export interface ActivityItem {
 export interface GmSummary {
   kpis: {
     disbursed: Kpi
+    disbursedTotal: Kpi
     outstanding: Kpi
     interestEarned: Kpi
     recoveryRate: Kpi

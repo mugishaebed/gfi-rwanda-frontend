@@ -520,7 +520,7 @@ export default function LoanManagement({ role = 'LOAN_OFFICER', initialFilter }:
                     Original Amount
                   </th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">
-                    Outstanding Balance
+                    Outstanding Principal
                   </th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">
                     Date

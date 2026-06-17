@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { apiFetch } from '@/lib/api'
 import type { Loan } from '@/lib/types'
 
 interface Props {
@@ -8,6 +9,17 @@ interface Props {
   onClose: () => void
   onSuccess: () => void
 }
+
+interface SuggestedSplit {
+  loanId: string
+  amountPaid: number
+  outstandingPrincipal: number
+  interestRatePercentPerMonth: number
+  principalPaid: number
+  interestPaid: number
+}
+
+const roundCents = (n: number) => Math.round(n * 100)
 
 export default function RecordRepaymentForm({ loan, onClose, onSuccess }: Props) {
   const [amountPaid, setAmountPaid] = useState('')
@@ -18,12 +30,67 @@ export default function RecordRepaymentForm({ loan, onClose, onSuccess }: Props)
   const [documents, setDocuments] = useState<File[]>([])
   const [documentLabels, setDocumentLabels] = useState<string[]>([])
   const [fileError, setFileError] = useState('')
-  const [splitError, setSplitError] = useState('')
+  const [suggesting, setSuggesting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [loading, setLoading] = useState(false)
 
   const clientName =
     loan.client.individual?.fullName ?? loan.client.business?.businessName ?? loan.client.accountNumber
+
+  // The split flow is for manual loans; online loans are settled elsewhere.
+  const isManual = loan.source !== 'CLIENT_ONLINE'
+
+  // When the officer types an amount, ask the backend for a suggested split and
+  // pre-fill the (still editable) principal/interest fields.
+  useEffect(() => {
+    const amount = Number(amountPaid)
+    if (!isManual || !amountPaid || !(amount > 0)) return
+
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      setSuggesting(true)
+      try {
+        const split = await apiFetch<SuggestedSplit>(
+          `/repayments/loans/${loan.id}/suggested-split?amount=${amount}`
+        )
+        if (cancelled) return
+        setPrincipalPaid(String(split.principalPaid))
+        setInterestPaid(String(split.interestPaid))
+      } catch {
+        // Suggestion is best-effort — the officer can still fill the split in.
+      } finally {
+        if (!cancelled) setSuggesting(false)
+      }
+    }, 300)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [amountPaid, isManual, loan.id])
+
+  // Mirror the backend split rules for instant feedback.
+  const amountNum = Number(amountPaid)
+  const principalNum = principalPaid === '' ? null : Number(principalPaid)
+  const interestNum = interestPaid === '' ? null : Number(interestPaid)
+  const outstanding = loan.outstandingBalance
+
+  let splitError = ''
+  if (principalNum !== null && interestNum !== null && amountPaid !== '') {
+    if (principalNum < 0 || interestNum < 0) {
+      splitError = 'Principal and interest cannot be negative'
+    } else if (roundCents(principalNum + interestNum) !== roundCents(amountNum)) {
+      splitError = 'Principal + Interest must equal the total amount paid'
+    }
+  }
+
+  let principalError = ''
+  if (principalNum !== null && principalNum > 0 && outstanding !== undefined && principalNum > outstanding) {
+    principalError = 'Principal cannot exceed the outstanding principal balance'
+  }
+
+  const canSubmit =
+    !loading && !fileError && !splitError && !principalError && !!amountPaid && !!paymentDate
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
@@ -44,14 +111,8 @@ export default function RecordRepaymentForm({ loan, onClose, onSuccess }: Props)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitError('')
-    setSplitError('')
 
-    if (principalPaid && interestPaid) {
-      if (Number(principalPaid) + Number(interestPaid) !== Number(amountPaid)) {
-        setSplitError('Principal + Interest must equal the total amount paid')
-        return
-      }
-    }
+    if (splitError || principalError) return
 
     setLoading(true)
 
@@ -109,7 +170,7 @@ export default function RecordRepaymentForm({ loan, onClose, onSuccess }: Props)
               Original: {loan.amount.toLocaleString('en-RW', { style: 'currency', currency: 'RWF' })}
               {loan.outstandingBalance !== undefined && (
                 <>
-                  {' '} • Outstanding: {loan.outstandingBalance.toLocaleString('en-RW', { style: 'currency', currency: 'RWF' })}
+                  {' '} • Outstanding principal: {loan.outstandingBalance.toLocaleString('en-RW', { style: 'currency', currency: 'RWF' })}
                 </>
               )}
             </p>
@@ -134,7 +195,7 @@ export default function RecordRepaymentForm({ loan, onClose, onSuccess }: Props)
                 min="0.01"
                 step="0.01"
                 value={amountPaid}
-                onChange={(e) => { setAmountPaid(e.target.value); setSplitError('') }}
+                onChange={(e) => setAmountPaid(e.target.value)}
                 placeholder="e.g. 50000"
                 className={inputClass}
               />
@@ -154,9 +215,14 @@ export default function RecordRepaymentForm({ loan, onClose, onSuccess }: Props)
           </div>
 
           <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">
-              Payment Breakdown <span className="normal-case font-normal tracking-normal text-gray-400">(optional)</span>
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-gray-400">
+                Payment Breakdown
+              </p>
+              <span className="text-xs font-normal text-gray-400">
+                {suggesting ? 'Suggesting split…' : 'Auto-filled — editable'}
+              </span>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Principal Paid (RWF)</label>
@@ -165,10 +231,11 @@ export default function RecordRepaymentForm({ loan, onClose, onSuccess }: Props)
                   min="0"
                   step="0.01"
                   value={principalPaid}
-                  onChange={(e) => { setPrincipalPaid(e.target.value); setSplitError('') }}
+                  onChange={(e) => setPrincipalPaid(e.target.value)}
                   placeholder="e.g. 40000"
                   className={inputClass}
                 />
+                {principalError && <p className="mt-1 text-xs text-red-600">{principalError}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Interest Paid (RWF)</label>
@@ -177,7 +244,7 @@ export default function RecordRepaymentForm({ loan, onClose, onSuccess }: Props)
                   min="0"
                   step="0.01"
                   value={interestPaid}
-                  onChange={(e) => { setInterestPaid(e.target.value); setSplitError('') }}
+                  onChange={(e) => setInterestPaid(e.target.value)}
                   placeholder="e.g. 10000"
                   className={inputClass}
                 />
@@ -250,7 +317,7 @@ export default function RecordRepaymentForm({ loan, onClose, onSuccess }: Props)
             </button>
             <button
               type="submit"
-              disabled={loading || !!fileError || !!splitError}
+              disabled={!canSubmit}
               className="rounded-lg bg-[#36e07b] px-5 py-2.5 text-sm font-semibold text-gray-900 hover:bg-[#1bcb68] disabled:opacity-50 transition-colors"
             >
               {loading ? 'Recording…' : 'Record Repayment'}

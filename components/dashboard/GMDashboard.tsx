@@ -105,10 +105,10 @@ export default function GMDashboard({
       {/* Hero KPIs */}
       <div className={`grid gap-5 transition-opacity sm:grid-cols-2 lg:grid-cols-4 ${loading ? 'opacity-60' : ''}`}>
         <KpiCard
-          label="Total Disbursed"
+          label={`Disbursed · ${periodLabel}`}
           value={summary.kpis.disbursed.value}
           format="currency"
-          hint={`Disbursed · ${periodLabel}`}
+          hint={`All-time: ${fmtCompactMoney(summary.kpis.disbursedTotal.value)}`}
           delta={{ pct: summary.kpis.disbursed.deltaPct, positiveIsGood: true }}
         />
         <KpiCard
