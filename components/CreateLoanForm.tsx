@@ -839,8 +839,14 @@ export default function CreateLoanForm({ onClose, onSuccess, mode = 'modal' }: P
       </div>
     </div>
   ) : (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-8 shadow-xl">
+    <div
+      onClick={() => onClose?.()}
+      className="animate-overlay-in fixed inset-0 z-50 flex items-start justify-end bg-gray-900/20 p-4 backdrop-blur-[2px] sm:p-6"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="animate-slide-in-right max-h-[calc(100vh-3rem)] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-8 shadow-2xl ring-1 ring-black/5"
+      >
         <div className="mb-6 flex items-start justify-between">
           <div>
             <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#36e07b]">

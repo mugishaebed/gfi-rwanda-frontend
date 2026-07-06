@@ -110,8 +110,14 @@ export default function ClientDetailModal({ client, onClose, canApprove = false,
   const name = client.individual?.fullName ?? client.business?.businessName ?? '—'
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
+    <div
+      onClick={onClose}
+      className="animate-overlay-in fixed inset-0 z-50 flex items-start justify-end bg-gray-900/20 p-4 backdrop-blur-[2px] sm:p-6"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="animate-slide-in-right max-h-[calc(100vh-3rem)] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-8 shadow-2xl ring-1 ring-black/5"
+      >
         {/* Header */}
         <div className="flex items-start justify-between mb-6">
           <div>

@@ -10,6 +10,7 @@ export type LoanStatus =
   | 'DISBURSING'
   | 'DISBURSEMENT_FAILED'
   | 'ACTIVE'
+  | 'CANCELLED'
 
 export type LoanSector =
   | 'COFFEE'
@@ -127,6 +128,7 @@ export const STATUS_LABELS: Record<LoanStatus, string> = {
   DISBURSING: 'Disbursing',
   DISBURSEMENT_FAILED: 'Disb. Failed',
   ACTIVE: 'Active',
+  CANCELLED: 'Cancelled',
 }
 
 export const STATUS_COLORS: Record<LoanStatus, string> = {
@@ -137,6 +139,7 @@ export const STATUS_COLORS: Record<LoanStatus, string> = {
   APPROVED: '#34d399',
   DISBURSEMENT_FAILED: '#fb7185',
   REJECTED: '#f87171',
+  CANCELLED: '#9ca3af',
 }
 
 export const ACTIVITY_DOT: Record<ActivityType, string> = {

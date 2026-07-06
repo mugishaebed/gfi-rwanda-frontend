@@ -6,6 +6,7 @@ export type LoanStatus =
   | 'DISBURSEMENT_FAILED'
   | 'ACTIVE'
   | 'REJECTED'
+  | 'CANCELLED'
 export type LoanSource = 'CLIENT_ONLINE' | 'STAFF_MANUAL'
 export type LoanSector =
   | 'COFFEE'
@@ -14,7 +15,7 @@ export type LoanSector =
   | 'REAL_ESTATE'
   | 'TENDERS'
   | 'HOSPITALITY'
-export type RepaymentStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+export type RepaymentStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'VOIDED'
 export type RepaymentSource = 'STAFF_MANUAL' | 'CLIENT_ONLINE'
 export type PaymentProvider = 'MOBILE_MONEY'
 
@@ -79,6 +80,7 @@ export interface Loan {
   outstandingBalance?: number
   totalRepaidAmount?: number
   purpose: string
+  sector?: LoanSector | null
   source?: LoanSource
   status: LoanStatus
   termsAccepted?: boolean

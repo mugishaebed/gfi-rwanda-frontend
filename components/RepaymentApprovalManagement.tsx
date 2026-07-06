@@ -2,13 +2,19 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { apiFetch } from '@/lib/api'
-import { approveRepayment, rejectRepayment } from '@/lib/loan-actions'
+import {
+  approveRepayment,
+  rejectRepayment,
+  editRepayment,
+  voidRepayment,
+} from '@/lib/loan-actions'
 import type { Repayment, RepaymentsResponse, RepaymentStatus } from '@/lib/types'
 
 const STATUS_STYLES: Record<RepaymentStatus, string> = {
   PENDING: 'bg-yellow-50 text-yellow-700',
   APPROVED: 'bg-[#e8faf0] text-[#36e07b]',
   REJECTED: 'bg-red-50 text-red-600',
+  VOIDED: 'bg-gray-100 text-gray-500',
 }
 
 type Filter = 'ALL' | RepaymentStatus
@@ -68,8 +74,14 @@ function ReviewModal({ repayment, action, onClose, onDone }: ReviewModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-xl">
+    <div
+      onClick={onClose}
+      className="animate-overlay-in fixed inset-0 z-50 flex items-start justify-end bg-gray-900/20 p-4 backdrop-blur-[2px] sm:p-6"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="animate-slide-in-right max-h-[calc(100vh-3rem)] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-8 shadow-2xl ring-1 ring-black/5"
+      >
         <div className="flex items-start justify-between mb-5">
           <div>
             <p className={`text-xs font-semibold uppercase tracking-[0.2em] mb-1 ${action === 'approve' ? 'text-[#36e07b]' : 'text-red-500'}`}>
@@ -173,6 +185,281 @@ function ReviewModal({ repayment, action, onClose, onDone }: ReviewModalProps) {
   )
 }
 
+function parseError(err: unknown): string {
+  try {
+    const parsed = JSON.parse((err as Error).message)
+    return Array.isArray(parsed.message) ? parsed.message.join(' ') : parsed.message
+  } catch {
+    return (err as Error).message || 'An error occurred.'
+  }
+}
+
+// ISO timestamp -> yyyy-mm-dd for <input type="date">
+function toDateInput(iso: string): string {
+  return new Date(iso).toISOString().slice(0, 10)
+}
+
+interface EditModalProps {
+  repayment: Repayment
+  onClose: () => void
+  onDone: () => void
+}
+
+function EditRepaymentModal({ repayment, onClose, onDone }: EditModalProps) {
+  const [amountPaid, setAmountPaid] = useState(String(repayment.amountPaid))
+  const [principalPaid, setPrincipalPaid] = useState(
+    repayment.principalPaid != null ? String(repayment.principalPaid) : ''
+  )
+  const [interestPaid, setInterestPaid] = useState(
+    repayment.interestPaid != null ? String(repayment.interestPaid) : ''
+  )
+  const [paymentDate, setPaymentDate] = useState(toDateInput(repayment.paymentDate))
+  const [note, setNote] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+
+    const amount = Number(amountPaid)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError('Amount paid must be a number greater than 0.')
+      return
+    }
+
+    const hasPrincipal = principalPaid.trim() !== ''
+    const hasInterest = interestPaid.trim() !== ''
+    if (hasPrincipal || hasInterest) {
+      const p = Number(principalPaid || 0)
+      const i = Number(interestPaid || 0)
+      if (Math.round((p + i) * 100) !== Math.round(amount * 100)) {
+        setError('Principal + interest must equal the amount paid.')
+        return
+      }
+    }
+
+    setLoading(true)
+    try {
+      await editRepayment(repayment.id, {
+        amountPaid: amount,
+        ...(hasPrincipal ? { principalPaid: Number(principalPaid) } : {}),
+        ...(hasInterest ? { interestPaid: Number(interestPaid) } : {}),
+        paymentDate: new Date(`${paymentDate}T00:00:00.000Z`).toISOString(),
+        ...(note ? { note } : {}),
+      })
+      onDone()
+    } catch (err) {
+      setError(parseError(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      className="animate-overlay-in fixed inset-0 z-50 flex items-start justify-end bg-gray-900/20 p-4 backdrop-blur-[2px] sm:p-6"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="animate-slide-in-right max-h-[calc(100vh-3rem)] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-8 shadow-2xl ring-1 ring-black/5"
+      >
+        <div className="flex items-start justify-between mb-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] mb-1 text-[#36e07b]">
+              Edit Repayment
+            </p>
+            <h3 className="text-xl font-bold text-gray-900">Correct repayment details</h3>
+          </div>
+          <button onClick={onClose} className="text-gray-300 hover:text-gray-600 transition-colors text-lg leading-none mt-1">
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Amount Paid (RWF)</label>
+            <input
+              type="number"
+              min={1}
+              step="any"
+              value={amountPaid}
+              onChange={(e) => setAmountPaid(e.target.value)}
+              className="block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-[#36e07b] focus:outline-none focus:ring-1 focus:ring-[#36e07b]"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Principal <span className="text-xs font-normal text-gray-400">(optional)</span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                step="any"
+                value={principalPaid}
+                onChange={(e) => setPrincipalPaid(e.target.value)}
+                className="block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-[#36e07b] focus:outline-none focus:ring-1 focus:ring-[#36e07b]"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Interest <span className="text-xs font-normal text-gray-400">(optional)</span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                step="any"
+                value={interestPaid}
+                onChange={(e) => setInterestPaid(e.target.value)}
+                className="block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-[#36e07b] focus:outline-none focus:ring-1 focus:ring-[#36e07b]"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Payment Date</label>
+            <input
+              type="date"
+              value={paymentDate}
+              onChange={(e) => setPaymentDate(e.target.value)}
+              className="block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-[#36e07b] focus:outline-none focus:ring-1 focus:ring-[#36e07b]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Note <span className="text-xs font-normal text-gray-400">(optional)</span>
+            </label>
+            <textarea
+              rows={2}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Reason for the correction…"
+              className="block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-[#36e07b] focus:outline-none focus:ring-1 focus:ring-[#36e07b] resize-none"
+            />
+          </div>
+
+          {repayment.status === 'APPROVED' && (
+            <p className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+              This repayment is approved — saving will reverse and reapply the loan balances.
+            </p>
+          )}
+
+          {error && (
+            <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 hover:border-gray-300 hover:text-gray-900 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50 bg-[#36e07b] text-gray-900 hover:bg-[#1bcb68]"
+            >
+              {loading ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function VoidRepaymentModal({ repayment, onClose, onDone }: EditModalProps) {
+  const [note, setNote] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      await voidRepayment(repayment.id, note || undefined)
+      onDone()
+    } catch (err) {
+      setError(parseError(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      className="animate-overlay-in fixed inset-0 z-50 flex items-start justify-end bg-gray-900/20 p-4 backdrop-blur-[2px] sm:p-6"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="animate-slide-in-right max-h-[calc(100vh-3rem)] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-8 shadow-2xl ring-1 ring-black/5"
+      >
+        <div className="flex items-start justify-between mb-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] mb-1 text-red-500">
+              Void Repayment
+            </p>
+            <h3 className="text-xl font-bold text-gray-900">Confirm void</h3>
+          </div>
+          <button onClick={onClose} className="text-gray-300 hover:text-gray-600 transition-colors text-lg leading-none mt-1">
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Voiding soft-deletes this repayment.
+            {repayment.status === 'APPROVED' && ' Because it is approved, the loan balances will be reversed.'}
+            {' '}This cannot be undone.
+          </p>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Note <span className="text-xs font-normal text-gray-400">(optional)</span>
+            </label>
+            <textarea
+              rows={3}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Reason for voiding…"
+              className="block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-400 resize-none"
+            />
+          </div>
+
+          {error && (
+            <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 hover:border-gray-300 hover:text-gray-900 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50 bg-red-500 text-white hover:bg-red-600"
+            >
+              {loading ? 'Voiding…' : 'Void repayment'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 function RepaymentDetailModal({ repayment, onClose }: { repayment: Repayment; onClose: () => void }) {
   const API_URL = process.env.NEXT_PUBLIC_API_URL ?? ''
   const statusLogs = repayment.statusLogs ?? []
@@ -191,8 +478,14 @@ function RepaymentDetailModal({ repayment, onClose }: { repayment: Repayment; on
   const splitKnown = repayment.principalPaid != null || repayment.interestPaid != null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+    <div
+      onClick={onClose}
+      className="animate-overlay-in fixed inset-0 z-50 flex items-start justify-end bg-gray-900/20 p-4 backdrop-blur-[2px] sm:p-6"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="animate-slide-in-right flex max-h-[calc(100vh-3rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5"
+      >
         {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-7 pb-5 pt-7">
           <div className="min-w-0">
@@ -350,6 +643,8 @@ export default function RepaymentApprovalManagement() {
   const [filter, setFilter] = useState<Filter>('ALL')
   const [viewingRepayment, setViewingRepayment] = useState<Repayment | null>(null)
   const [reviewing, setReviewing] = useState<{ repayment: Repayment; action: 'approve' | 'reject' } | null>(null)
+  const [editing, setEditing] = useState<Repayment | null>(null)
+  const [voiding, setVoiding] = useState<Repayment | null>(null)
 
   const fetchRepayments = useCallback(async () => {
     try {
@@ -390,6 +685,7 @@ export default function RepaymentApprovalManagement() {
     { label: 'Pending', value: 'PENDING' },
     { label: 'Approved', value: 'APPROVED' },
     { label: 'Rejected', value: 'REJECTED' },
+    { label: 'Voided', value: 'VOIDED' },
   ]
 
   return (
@@ -489,6 +785,22 @@ export default function RepaymentApprovalManagement() {
                         </button>
                       </>
                     )}
+                    {r.status !== 'VOIDED' && r.status !== 'REJECTED' && (
+                      <>
+                        <button
+                          onClick={() => setEditing(r)}
+                          className="font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setVoiding(r)}
+                          className="font-medium text-gray-400 hover:text-red-600 transition-colors"
+                        >
+                          Void
+                        </button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -530,6 +842,28 @@ export default function RepaymentApprovalManagement() {
           onClose={() => setReviewing(null)}
           onDone={() => {
             setReviewing(null)
+            fetchRepayments()
+          }}
+        />
+      )}
+
+      {editing && (
+        <EditRepaymentModal
+          repayment={editing}
+          onClose={() => setEditing(null)}
+          onDone={() => {
+            setEditing(null)
+            fetchRepayments()
+          }}
+        />
+      )}
+
+      {voiding && (
+        <VoidRepaymentModal
+          repayment={voiding}
+          onClose={() => setVoiding(null)}
+          onDone={() => {
+            setVoiding(null)
             fetchRepayments()
           }}
         />

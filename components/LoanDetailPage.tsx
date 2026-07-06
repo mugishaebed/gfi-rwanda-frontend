@@ -8,9 +8,11 @@ import {
   approveLoanByOfficer,
   rejectLoan,
   rejectLoanByOfficer,
+  cancelLoan,
 } from '@/lib/loan-actions'
 import type { Loan, LoanDocument, LoanSource, RepaymentScheduleItem, RepaymentTermsDetail } from '@/lib/types'
 import RecordRepaymentForm from './RecordRepaymentForm'
+import LoanEditModal from './LoanEditModal'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -27,6 +29,7 @@ const STATUS_BADGE: Record<string, string> = {
   DISBURSEMENT_FAILED: 'bg-red-50 text-red-600',
   ACTIVE: 'bg-[#e8faf0] text-[#238a4d]',
   REJECTED: 'bg-red-50 text-red-600',
+  CANCELLED: 'bg-gray-100 text-gray-500',
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -37,6 +40,7 @@ const STATUS_LABEL: Record<string, string> = {
   DISBURSEMENT_FAILED: 'Disbursement failed',
   ACTIVE: 'Active',
   REJECTED: 'Rejected',
+  CANCELLED: 'Cancelled',
 }
 
 const SOURCE_BADGE: Record<LoanSource, string> = {
@@ -409,6 +413,8 @@ export default function LoanDetailPage({ loanId, role }: Props) {
   const [fetchError, setFetchError] = useState('')
   const [reviewing, setReviewing] = useState<'approve' | 'reject' | null>(null)
   const [recordingRepayment, setRecordingRepayment] = useState(false)
+  const [editingLoan, setEditingLoan] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
 
   const backHref =
     role === 'LOAN_OFFICER'
@@ -495,6 +501,12 @@ export default function LoanDetailPage({ loanId, role }: Props) {
     role === 'LOAN_OFFICER'
       ? loan.status === 'PENDING_OFFICER_REVIEW'
       : loan.status === 'PENDING_GM_APPROVAL'
+  // GM-only. Disbursement details can only be edited once the loan is ACTIVE
+  // (disbursed); the backend 400s otherwise. Cancel is allowed for anything not
+  // already rejected or cancelled.
+  const canEditDisbursement = role === 'GENERAL_MANAGER' && loan.status === 'ACTIVE'
+  const canCancel =
+    role === 'GENERAL_MANAGER' && loan.status !== 'REJECTED' && loan.status !== 'CANCELLED'
   const totalRepayment =
     loan.repaymentAmountPerMonth ?? terms?.amountPerInstallment ?? loan.outstandingBalance
   const interestAmount =
@@ -621,6 +633,24 @@ export default function LoanDetailPage({ loanId, role }: Props) {
                 className="rounded-xl bg-[#36e07b] px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:bg-[#1bcb68]"
               >
                 + Record Repayment
+              </button>
+            )}
+
+            {canEditDisbursement && (
+              <button
+                onClick={() => setEditingLoan(true)}
+                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-gray-300 hover:text-gray-900"
+              >
+                Edit Disbursement
+              </button>
+            )}
+
+            {canCancel && (
+              <button
+                onClick={() => setCancelling(true)}
+                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-red-200 hover:text-red-600"
+              >
+                Cancel Loan
               </button>
             )}
           </div>
@@ -1105,6 +1135,128 @@ export default function LoanDetailPage({ loanId, role }: Props) {
           }}
         />
       )}
+
+      {editingLoan && (
+        <LoanEditModal
+          loan={loan}
+          onClose={() => setEditingLoan(false)}
+          onDone={() => {
+            setEditingLoan(false)
+            loadLoan()
+          }}
+        />
+      )}
+
+      {cancelling && (
+        <CancelLoanModal
+          loanId={loan.id}
+          onClose={() => setCancelling(false)}
+          onDone={() => {
+            setCancelling(false)
+            loadLoan()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function CancelLoanModal({
+  loanId,
+  onClose,
+  onDone,
+}: {
+  loanId: string
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [note, setNote] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      await cancelLoan(loanId, note || undefined)
+      onDone()
+    } catch (err) {
+      try {
+        const parsed = JSON.parse((err as Error).message)
+        setError(Array.isArray(parsed.message) ? parsed.message.join(' ') : parsed.message)
+      } catch {
+        setError((err as Error).message || 'An error occurred.')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      className="animate-overlay-in fixed inset-0 z-50 flex items-start justify-end bg-gray-900/20 p-4 backdrop-blur-[2px] sm:p-6"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="animate-slide-in-right max-h-[calc(100vh-3rem)] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-8 shadow-2xl ring-1 ring-black/5"
+      >
+        <div className="mb-5 flex items-start justify-between">
+          <div>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-red-500">Cancel Loan</p>
+            <h3 className="text-xl font-bold text-gray-900">Confirm cancellation</h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="mt-1 text-lg leading-none text-gray-300 transition-colors hover:text-gray-600"
+          >
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Cancelling removes this loan from the manual ledger and dashboard totals. Its repayments
+            remain as history. This cannot be undone.
+          </p>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Note <span className="text-xs font-normal text-gray-400">(optional)</span>
+            </label>
+            <textarea
+              rows={3}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Reason for cancelling…"
+              className="block w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-400"
+            />
+          </div>
+
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-gray-200 px-5 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:border-gray-300 hover:text-gray-900"
+            >
+              Keep loan
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="rounded-lg bg-red-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-600 disabled:opacity-50"
+            >
+              {loading ? 'Cancelling…' : 'Cancel loan'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }

@@ -20,6 +20,7 @@ const STATUS_STYLES: Record<LoanStatus, string> = {
   DISBURSEMENT_FAILED: 'bg-red-50 text-red-600',
   ACTIVE: 'bg-[#e8faf0] text-[#238a4d]',
   REJECTED: 'bg-red-50 text-red-600',
+  CANCELLED: 'bg-gray-100 text-gray-500',
 }
 
 const STATUS_LABELS: Record<LoanStatus, string> = {
@@ -30,6 +31,7 @@ const STATUS_LABELS: Record<LoanStatus, string> = {
   DISBURSEMENT_FAILED: 'Disbursement failed',
   ACTIVE: 'Active',
   REJECTED: 'Rejected',
+  CANCELLED: 'Cancelled',
 }
 
 const SOURCE_STYLES: Record<LoanSource, string> = {
@@ -251,8 +253,14 @@ function ReviewModal({ loan, action, role, onClose, onDone }: ReviewModalProps) 
     `${n.toLocaleString('en-RW', { maximumFractionDigits: 2 })} Rwf`
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
+    <div
+      onClick={onClose}
+      className="animate-overlay-in fixed inset-0 z-50 flex items-start justify-end bg-gray-900/20 p-4 backdrop-blur-[2px] sm:p-6"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="animate-slide-in-right max-h-[calc(100vh-3rem)] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-8 shadow-2xl ring-1 ring-black/5"
+      >
         <div className="mb-5 flex items-start justify-between gap-4">
           <div className="min-w-0">
             <p
